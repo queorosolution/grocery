@@ -85,7 +85,7 @@ func New(t testing.TB) *Env {
 		return nil
 	}
 	setupErr := setup()
-	conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", setupLock)
+	_, _ = conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", setupLock)
 	conn.Release()
 	if setupErr != nil {
 		t.Fatalf("testdb: setup: %v", setupErr)
@@ -102,7 +102,7 @@ func New(t testing.TB) *Env {
 	t.Cleanup(func() {
 		appDB.Close()
 		owner.Close()
-		admin.Exec(ctx, `DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`)
+		_, _ = admin.Exec(ctx, `DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`)
 		admin.Close()
 	})
 	return &Env{Name: name, Owner: owner, DB: appDB, OwnerURL: ownerURL, AppURL: appURL}
@@ -137,6 +137,6 @@ func withDatabase(raw, name, user, password string) string {
 
 func randomHex() string {
 	b := make([]byte, 6)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }

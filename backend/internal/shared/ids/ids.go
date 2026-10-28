@@ -62,7 +62,7 @@ func ShopPrefix(slug string) string {
 // Token returns 32 random bytes as URL-safe base64 (43 characters).
 func Token() string {
 	b := make([]byte, 32)
-	rand.Read(b) // never fails since Go 1.24: it crashes the program instead
+	_, _ = rand.Read(b) // never fails since Go 1.24: it crashes the program instead
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
@@ -70,7 +70,7 @@ func Token() string {
 // 32, so masking a byte gives every symbol the same chance.
 func randomFrom(alphabet string, n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	for i := range b {
 		b[i] = alphabet[b[i]&31]
 	}

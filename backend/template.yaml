@@ -1,0 +1,564 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Multi-shop grocery platform API (docs/14 section 4)
+
+# Every value from docs/13 section 1 is a parameter. Secrets are NOT here: Lambda
+# gets the SSM prefix, and the code reads each secret by name at run time.
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues: [dev, prod]
+  AppName:
+    Type: String
+    Default: gp
+    AllowedPattern: "^[a-z][a-z0-9-]{1,15}$"
+  PlatformName: { Type: String }
+  PlatformDomain: { Type: String }
+  WebOrigin: { Type: String }
+  AllowedOrigins: { Type: CommaDelimitedList }
+  ApiBaseUrl: { Type: String }
+  ImgBaseUrl: { Type: String }
+  SupportPhone: { Type: String }
+  SuperAdminEmails: { Type: String }
+  AdminAlertPhone: { Type: String }
+  GoogleClientId: { Type: String }
+  CartApiBase: { Type: String }
+  SmsApiUrl: { Type: String }
+  SmsSenderId: { Type: String }
+  SmsDailyCap:
+    Type: Number
+    Default: 500
+  R2AccountId: { Type: String }
+  R2Bucket: { Type: String }
+  FeatureSingleShop:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+  FeatureWhatsapp:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+  FeatureManualPayment:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+  AlertEmail:
+    Type: String
+    Description: Receives every alarm (SNS email, must be confirmed once).
+  ApiDomainName:
+    Type: String
+    Default: ""
+    Description: Custom API domain, for example api-dev.example.com. Empty keeps the default AWS URL.
+  ApiCertificateArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^(arn:aws[a-z-]*:acm:[a-z0-9-]+:[0-9]{12}:certificate/.+)?$"
+    Description: ACM certificate for ApiDomainName, in the same region.
+
+Conditions:
+  HasApiDomain: !Not [!Equals [!Ref ApiDomainName, ""]]
+
+Globals:
+  Function:
+    Runtime: provided.al2023
+    Architectures: [arm64]
+    Handler: bootstrap
+    MemorySize: 256
+    Tracing: PassThrough
+    Environment:
+      Variables:
+        APP_NAME: !Ref AppName
+        APP_ENV: !Ref Env
+        LOG_LEVEL: !Ref LogLevel
+        PLATFORM_NAME: !Ref PlatformName
+        PLATFORM_DOMAIN: !Ref PlatformDomain
+        WEB_ORIGIN: !Ref WebOrigin
+        ALLOWED_ORIGINS: !Join [",", !Ref AllowedOrigins]
+        API_BASE_URL: !Ref ApiBaseUrl
+        IMG_BASE_URL: !Ref ImgBaseUrl
+        SUPPORT_PHONE: !Ref SupportPhone
+        SUPER_ADMIN_EMAILS: !Ref SuperAdminEmails
+        ADMIN_ALERT_PHONE: !Ref AdminAlertPhone
+        GOOGLE_CLIENT_ID: !Ref GoogleClientId
+        CART_API_BASE: !Ref CartApiBase
+        SMS_API_URL: !Ref SmsApiUrl
+        SMS_SENDER_ID: !Ref SmsSenderId
+        SMS_DAILY_CAP: !Ref SmsDailyCap
+        R2_ACCOUNT_ID: !Ref R2AccountId
+        R2_BUCKET: !Ref R2Bucket
+        FEATURE_SINGLE_SHOP: !Ref FeatureSingleShop
+        FEATURE_WHATSAPP: !Ref FeatureWhatsapp
+        FEATURE_MANUAL_PAYMENT: !Ref FeatureManualPayment
+        # Names only. The values live in SSM SecureString under this prefix.
+        SSM_PREFIX: !Sub "/${AppName}/${Env}"
+        EVENTS_QUEUE_URL: !Ref EventsQueue
+        SCHEDULER_GROUP: !Sub "${AppName}-${Env}"
+        # Built from names, not !GetAtt, so a function never depends on itself.
+        SCHEDULER_ROLE_ARN: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppName}-${Env}-scheduler"
+        TIMER_FUNCTION_ARN: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppName}-${Env}-timer"
+        SYNC_FUNCTION_ARN: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppName}-${Env}-sync"
+        WORKER_FUNCTION_ARN: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppName}-${Env}-worker"
+
+Resources:
+  # ---------------------------------------------------------------- API
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      # No CORS block: the app sets CORS itself (docs/07 section 3).
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 50
+        ThrottlingBurstLimit: 100
+      # With a custom domain, only that domain (behind Cloudflare) can reach the API.
+      DisableExecuteApiEndpoint: !If [HasApiDomain, true, false]
+
+  # Plain CloudFormation rather than the SAM Domain block, which cannot be conditional.
+  ApiDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Condition: HasApiDomain
+    Metadata:
+      # The empty default only exists while the condition is false.
+      cfn-lint:
+        config:
+          ignore_checks: [W1030]
+    Properties:
+      DomainName: !Ref ApiDomainName
+      DomainNameConfigurations:
+        - CertificateArn: !Ref ApiCertificateArn
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  ApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Condition: HasApiDomain
+    DependsOn: HttpApiStage
+    Properties:
+      ApiId: !Ref HttpApi
+      DomainName: !Ref ApiDomain
+      Stage: $default
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub "${AppName}-${Env}-api"
+      CodeUri: .
+      Timeout: 10
+      MemorySize: 256
+      ReservedConcurrentExecutions: 20
+      LoggingConfig:
+        LogGroup: !Ref ApiLogGroup
+      Events:
+        Any:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ReadSecrets
+              Effect: Allow
+              Action: [ssm:GetParameter, ssm:GetParameters]
+              Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/*"
+            # Connector and payment secrets are written by the admin API.
+            - Sid: WriteConnectorAndPaymentSecrets
+              Effect: Allow
+              Action: [ssm:PutParameter]
+              Resource:
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/connectors/*"
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/payhere/*"
+            - Sid: SendEvents
+              Effect: Allow
+              Action: [sqs:SendMessage]
+              Resource: !GetAtt EventsQueue.Arn
+            - Sid: ManageSchedules
+              Effect: Allow
+              Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule, scheduler:DeleteSchedule]
+              Resource: !Sub "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${AppName}-${Env}/*"
+            - Sid: PassSchedulerRole
+              Effect: Allow
+              Action: [iam:PassRole]
+              Resource: !GetAtt SchedulerRole.Arn
+              Condition:
+                StringEquals:
+                  iam:PassedToService: scheduler.amazonaws.com
+            - Sid: TriggerSync
+              Effect: Allow
+              Action: [lambda:InvokeFunction]
+              Resource: !GetAtt SyncFunction.Arn
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${Env}-api"
+      RetentionInDays: 14
+
+  # ------------------------------------------------------------- Worker
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub "${AppName}-${Env}-worker"
+      CodeUri: .
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrentExecutions: 5
+      LoggingConfig:
+        LogGroup: !Ref WorkerLogGroup
+      Events:
+        Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt EventsQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes: [ReportBatchItemFailures]
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ReadSecrets
+              Effect: Allow
+              Action: [ssm:GetParameter, ssm:GetParameters]
+              Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/*"
+            - Sid: ConsumeEvents
+              Effect: Allow
+              Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+              Resource: !GetAtt EventsQueue.Arn
+            # The outbox sweep puts missed events back on the queue.
+            - Sid: SweepToQueue
+              Effect: Allow
+              Action: [sqs:SendMessage]
+              Resource: !GetAtt EventsQueue.Arn
+            - Sid: CreateSchedules
+              Effect: Allow
+              Action: [scheduler:CreateSchedule]
+              Resource: !Sub "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${AppName}-${Env}/*"
+            - Sid: PassSchedulerRole
+              Effect: Allow
+              Action: [iam:PassRole]
+              Resource: !GetAtt SchedulerRole.Arn
+              Condition:
+                StringEquals:
+                  iam:PassedToService: scheduler.amazonaws.com
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${Env}-worker"
+      RetentionInDays: 14
+
+  # -------------------------------------------------------------- Timer
+  TimerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub "${AppName}-${Env}-timer"
+      CodeUri: .
+      Timeout: 10
+      MemorySize: 128
+      ReservedConcurrentExecutions: 5
+      LoggingConfig:
+        LogGroup: !Ref TimerLogGroup
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ReadSecrets
+              Effect: Allow
+              Action: [ssm:GetParameter, ssm:GetParameters]
+              Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/*"
+
+  TimerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${Env}-timer"
+      RetentionInDays: 14
+
+  # --------------------------------------------------------------- Sync
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub "${AppName}-${Env}-sync"
+      CodeUri: .
+      Timeout: 60
+      MemorySize: 256
+      ReservedConcurrentExecutions: 2
+      LoggingConfig:
+        LogGroup: !Ref SyncLogGroup
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ReadSecrets
+              Effect: Allow
+              Action: [ssm:GetParameter, ssm:GetParameters]
+              Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/*"
+
+  SyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${Env}-sync"
+      RetentionInDays: 14
+
+  # ------------------------------------------------------ Queue and DLQ
+  EventsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AppName}-${Env}-events-dlq"
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  EventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${AppName}-${Env}-events"
+      # 6 x the worker timeout (30 s).
+      VisibilityTimeout: 180
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt EventsDLQ.Arn
+        maxReceiveCount: 3
+
+  # ----------------------------------------------------------- Schedules
+  SchedulerGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Sub "${AppName}-${Env}"
+
+  # Scheduler may invoke timer, sync and worker, nothing else.
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-${Env}-scheduler"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: invoke-targets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [lambda:InvokeFunction]
+                Resource:
+                  - !GetAtt TimerFunction.Arn
+                  - !GetAtt SyncFunction.Arn
+                  - !GetAtt WorkerFunction.Arn
+
+  # 07:30-22:00 Colombo, every 15 minutes (docs/04 section 6).
+  OutboxSweepSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: outbox-sweep
+      GroupName: !Ref SchedulerGroup
+      ScheduleExpression: cron(0/15 2-16 * * ? *)
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: !GetAtt WorkerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"type":"outbox.sweep"}'
+
+  # 00:15 Colombo: closes yesterday's stats.
+  StatsRollupSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: stats-rollup
+      GroupName: !Ref SchedulerGroup
+      ScheduleExpression: cron(45 18 * * ? *)
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: !GetAtt WorkerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"type":"stats.rollup"}'
+
+  # ------------------------------------------------------------- Alarms
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AppName}-${Env}-alerts"
+      KmsMasterKeyId: alias/aws/sns
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  # Alarms 4.8 that count a log event. The code must log these exact messages.
+  PaymentSignatureFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: '{ $.msg = "payment.signature_invalid" }'
+      MetricTransformations:
+        - { MetricNamespace: !Sub "${AppName}/${Env}", MetricName: PaymentSignatureInvalid, MetricValue: "1", DefaultValue: 0 }
+
+  RefreshReuseFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: '{ $.msg = "auth.refresh_reuse" }'
+      MetricTransformations:
+        - { MetricNamespace: !Sub "${AppName}/${Env}", MetricName: RefreshTokenReuse, MetricValue: "1", DefaultValue: 0 }
+
+  SmsCapApiFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: '{ $.msg = "sms.cap_80pct" }'
+      MetricTransformations:
+        - { MetricNamespace: !Sub "${AppName}/${Env}", MetricName: SmsCap80Percent, MetricValue: "1", DefaultValue: 0 }
+
+  SmsCapWorkerFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref WorkerLogGroup
+      FilterPattern: '{ $.msg = "sms.cap_80pct" }'
+      MetricTransformations:
+        - { MetricNamespace: !Sub "${AppName}/${Env}", MetricName: SmsCap80Percent, MetricValue: "1", DefaultValue: 0 }
+
+  SyncFailedFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref SyncLogGroup
+      FilterPattern: '{ $.msg = "sync.run_failed" }'
+      MetricTransformations:
+        - { MetricNamespace: !Sub "${AppName}/${Env}", MetricName: SyncRunFailed, MetricValue: "1", DefaultValue: 0 }
+
+  ApiErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AppName}-${Env}-api-5xx"
+      AlarmDescription: API 5xx rate above 1% for 5 minutes
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      Metrics:
+        - Id: rate
+          Expression: IF(requests > 0, errors / requests * 100, 0)
+          Label: 5xx percent
+          ReturnData: true
+        - Id: errors
+          ReturnData: false
+          MetricStat:
+            Stat: Sum
+            Period: 300
+            Metric:
+              Namespace: AWS/ApiGateway
+              MetricName: 5xx
+              Dimensions: [{ Name: ApiId, Value: !Ref HttpApi }]
+        - Id: requests
+          ReturnData: false
+          MetricStat:
+            Stat: Sum
+            Period: 300
+            Metric:
+              Namespace: AWS/ApiGateway
+              MetricName: Count
+              Dimensions: [{ Name: ApiId, Value: !Ref HttpApi }]
+      AlarmActions: [!Ref AlertTopic]
+
+  DlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AppName}-${Env}-dlq-not-empty"
+      AlarmDescription: Any message in the dead-letter queue
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{ Name: QueueName, Value: !GetAtt EventsDLQ.QueueName }]
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+  PaymentSignatureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AppName}-${Env}-payment-signature-failures"
+      AlarmDescription: 3 or more bad payment signatures in 1 hour
+      Namespace: !Sub "${AppName}/${Env}"
+      MetricName: PaymentSignatureInvalid
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+  RefreshReuseAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AppName}-${Env}-refresh-token-reuse"
+      AlarmDescription: A refresh token was used twice
+      Namespace: !Sub "${AppName}/${Env}"
+      MetricName: RefreshTokenReuse
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+  SmsCapAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AppName}-${Env}-sms-cap-80"
+      AlarmDescription: Daily SMS cap reached 80%
+      Namespace: !Sub "${AppName}/${Env}"
+      MetricName: SmsCap80Percent
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+  # A metric cannot count "in a row", so this is 3 failed runs within 30 minutes.
+  SyncFailingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AppName}-${Env}-sync-failing"
+      AlarmDescription: 3 failed sync runs within 30 minutes
+      Namespace: !Sub "${AppName}/${Env}"
+      MetricName: SyncRunFailed
+      Statistic: Sum
+      Period: 1800
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API (the custom domain once mapped)
+    Value: !If
+      - HasApiDomain
+      - !Sub "https://${ApiDomainName}"
+      - !Sub "https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"
+  ApiDomainTarget:
+    Condition: HasApiDomain
+    Description: Point the proxied Cloudflare CNAME for ApiDomainName here
+    Value: !GetAtt ApiDomain.RegionalDomainName
+  EventsQueueUrl:
+    Value: !Ref EventsQueue

@@ -27,12 +27,15 @@ func generate(c *Contract) (backend, web []output, err error) {
 func writeAll(root string, files []output) error {
 	for _, f := range files {
 		path := filepath.Join(root, f.Path)
+		// #nosec G304 -- dev tool: path is under the folder given on the command line
 		if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, f.Data) {
 			continue
 		}
+		// #nosec G301 -- generated source folders are meant to be readable
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
+		// #nosec G306 -- generated source files are meant to be readable
 		if err := os.WriteFile(path, f.Data, 0o644); err != nil {
 			return err
 		}

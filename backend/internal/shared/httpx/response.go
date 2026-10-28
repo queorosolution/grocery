@@ -32,7 +32,7 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write(body)
+	_, _ = w.Write(body)
 }
 
 // Error writes err in the API error shape (docs/06 section 1). Anything that is
@@ -52,7 +52,7 @@ func writeError(w http.ResponseWriter, e *apperr.Error, requestID string) {
 	}})
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(e.Code.HTTPStatus())
-	w.Write(body)
+	_, _ = w.Write(body)
 }
 
 // CachePublic marks a response as cacheable by Cloudflare and browsers. Only

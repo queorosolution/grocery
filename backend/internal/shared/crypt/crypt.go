@@ -70,7 +70,8 @@ func (r *Ring) Seal(plaintext, aad []byte) []byte {
 	aead := r.keys[r.current]
 	out := make([]byte, headerLen, headerLen+len(plaintext)+aead.Overhead())
 	out[0] = r.current
-	rand.Read(out[1:headerLen]) // never fails since Go 1.24
+	_, _ = rand.Read(out[1:headerLen]) // never fails since Go 1.24
+	// #nosec G407 -- the nonce is random: it was just filled from crypto/rand.
 	return aead.Seal(out, out[1:headerLen], plaintext, aad)
 }
 
@@ -110,7 +111,7 @@ func RandomDigits(n int) string {
 	out := make([]byte, 0, n)
 	buf := make([]byte, n+8)
 	for len(out) < n {
-		rand.Read(buf)
+		_, _ = rand.Read(buf)
 		for _, b := range buf {
 			if b < 250 && len(out) < n { // 250 is a multiple of 10: no modulo bias
 				out = append(out, '0'+b%10)

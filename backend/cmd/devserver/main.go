@@ -64,7 +64,7 @@ func envFile() string {
 
 // readEnvFile reads KEY=VALUE lines. Blank lines and # comments are skipped.
 func readEnvFile(path string) ([]string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- the path is ENV_FILE or .env, set by the developer
 	if err != nil {
 		return nil, err
 	}

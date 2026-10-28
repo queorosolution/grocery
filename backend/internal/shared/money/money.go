@@ -54,12 +54,13 @@ func Add(a, b Cents) (Cents, error) {
 func mulDivRound(a, b, d int64) (Cents, error) {
 	neg := (a < 0) != (b < 0)
 	ua, ub := abs(a), abs(b)
+	ud := uint64(d) // #nosec G115 -- d is always a positive constant divisor (1 or 10000)
 	hi, lo := bits.Mul64(ua, ub)
-	if hi >= uint64(d) {
+	if hi >= ud {
 		return 0, ErrOverflow
 	}
-	q, r := bits.Div64(hi, lo, uint64(d))
-	if r >= uint64(d)-r { // remainder is at least half
+	q, r := bits.Div64(hi, lo, ud)
+	if r >= ud-r { // remainder is at least half
 		q++
 	}
 	if q > math.MaxInt64 {
@@ -73,7 +74,7 @@ func mulDivRound(a, b, d int64) (Cents, error) {
 
 func abs(v int64) uint64 {
 	if v < 0 {
-		return uint64(-v) // also right for MinInt64: -MinInt64 wraps to 2^63 as uint64
+		return uint64(-v) // #nosec G115 -- also right for MinInt64: -MinInt64 wraps to 2^63 as uint64
 	}
 	return uint64(v)
 }

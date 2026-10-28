@@ -1,0 +1,27 @@
+version = 0.1
+
+# Deploy settings only. Parameter values (domains, phones, emails) are not kept in
+# the repo: they come from the SAM_PARAMETERS variable of the GitHub environment
+# (CI) or your shell (make deploy). Secrets are never parameters: they live in SSM.
+
+[default.global.parameters]
+# Closest region to Sri Lanka. Change here and in the AWS_REGION GitHub variable together.
+region = "ap-south-1"
+
+[dev.deploy.parameters]
+stack_name = "gp-dev"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3 = true
+s3_prefix = "gp-dev"
+confirm_changeset = false
+fail_on_empty_changeset = false
+disable_rollback = false
+
+[prod.deploy.parameters]
+stack_name = "gp-prod"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3 = true
+s3_prefix = "gp-prod"
+confirm_changeset = false
+fail_on_empty_changeset = false
+disable_rollback = false
