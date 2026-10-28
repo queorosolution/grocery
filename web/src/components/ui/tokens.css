@@ -1,0 +1,20 @@
+/* Design tokens (docs/08 section 3.1). Change a value here, never in a component. */
+:root {
+  --c-bg: #ffffff;
+  --c-surface: #f7f7f7;
+  --c-text: #222222;
+  --c-muted: #6a6a6a;
+  --c-border: #dddddd;
+  --c-accent: #0e7c66; /* platform accent, NEXT_PUBLIC_ACCENT overrides */
+  --c-accent-text: #ffffff;
+  --c-danger: #c13515;
+  --c-success: #008a05;
+  --c-warning: #b45309;
+  --c-shop: var(--c-accent); /* set per shop page from shop.themeColor */
+  --radius-card: 12px;
+  --radius-input: 8px;
+  --radius-pill: 999px;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.08);
+  --shadow-raise: 0 6px 16px rgb(0 0 0 / 0.12);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Sinhala", "Noto Sans Tamil", sans-serif;
+}
