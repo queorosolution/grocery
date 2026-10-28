@@ -7,6 +7,7 @@ import (
 
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/enum"
+	"gp/internal/shared/geo"
 	"gp/internal/shared/validate"
 )
 
@@ -24,12 +25,6 @@ const (
 	defaultTheme     = "#222222"
 )
 
-// Sri Lanka's bounding box, the same as the table checks.
-const (
-	minLat, maxLat = 5.8, 10.0
-	minLng, maxLng = 79.4, 82.0
-)
-
 // profile is a shop's editable fields after cleaning, ready to store.
 type profile struct {
 	Slug, Name, ThemeColor string
@@ -42,8 +37,8 @@ func (p profile) validate() error {
 		Check("slug", slugRe.MatchString(p.Slug) && len(p.Slug) >= minSlug && len(p.Slug) <= maxSlug, "invalid").
 		Str("name", p.Name, minName, maxName).
 		Check("themeColor", themeRe.MatchString(p.ThemeColor), "invalid").
-		Check("lat", p.Lat >= minLat && p.Lat <= maxLat, "out_of_range").
-		Check("lng", p.Lng >= minLng && p.Lng <= maxLng, "out_of_range")
+		Check("lat", p.Lat >= geo.MinLat && p.Lat <= geo.MaxLat, "out_of_range").
+		Check("lng", p.Lng >= geo.MinLng && p.Lng <= geo.MaxLng, "out_of_range")
 	if p.Phone != nil {
 		v.Phone("phone", *p.Phone)
 	}

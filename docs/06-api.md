@@ -153,14 +153,18 @@ Body `{ "all": false }` (optional). Ends this sign-in, or every sign-in of the u
 | Method | Path | Auth | Body / query | Result |
 |---|---|---|---|---|
 | `GET` | `/me` | user | — | `me` object |
-| `PATCH` | `/me` | user | `{ "name": "…" }` | `me` |
-| `POST` | `/me/phone/send` | user | `{ "phone": "0771234567", "turnstileToken": "…" }` (phone normalised to `+94…`; Turnstile verified server-side) | `204` · `BOT_CHECK_FAILED`, `RATE_LIMITED` |
-| `POST` | `/me/phone/verify` | user | `{ "code": "1234" }` | `me` (`phoneVerified: true`) |
+| `PATCH` | `/me` | user | `{ "name": "…" }` (1–80 characters; e-mail cannot be changed) | `me` |
+| `POST` | `/me/phone/send` | user | `{ "phone": "0771234567", "turnstileToken": "…" }` (phone normalised to `+94…`; mobile numbers only, `07x`; Turnstile verified server-side) | `204` · `VALIDATION_ERROR` (`fields.phone`), `BOT_CHECK_FAILED`, `RATE_LIMITED`. Limits: 3 sends / hour / user and 5 / day / phone. A new code replaces the old one. The code has 6 digits and works for 10 minutes. |
+| `POST` | `/me/phone/verify` | user | `{ "code": "123456" }` (4–6 digits) | `me` (`phoneVerified: true`) · `OTP_INVALID` (wrong, expired or none sent) · `OTP_LOCKED` (from the 6th try on that code; send a new one) |
 | `GET` | `/me/addresses` | user | — | `{ "data": [address] }` |
-| `POST` | `/me/addresses` | user | `{ label, line1, landmark, lat, lng, isDefault }` | `{ address, deliveringShops: [ {slug, name, distanceKm} ] }` |
-| `PATCH` | `/me/addresses/{id}` | user | same fields, all optional | `address` |
-| `DELETE` | `/me/addresses/{id}` | user | — | `204` |
-| `DELETE` | `/me` | user | `{ "confirm": "DELETE" }` | `204`, account anonymised |
+| `POST` | `/me/addresses` | user | `{ label, line1, landmark, lat, lng, isDefault }` | `201 { address, deliveringShops: [ {slug, name, distanceKm} ] }` |
+| `PATCH` | `/me/addresses/{id}` | user | same fields, all optional, at least one; `landmark: ""` clears it | `{ address, deliveringShops }` (same shape as create, so the page can re-check after the pin moves) |
+| `DELETE` | `/me/addresses/{id}` | user | — | `204`. If it was the default, the newest remaining address becomes the default. |
+
+Address rules: `label` 1–30, `line1` 3–160, `landmark` ≤ 120 characters; the pin must be inside Sri Lanka (`lat` 5.8–10.0, `lng` 79.4–82.0); at most 5 per user (`400`, `fields.addresses = "max_5"`); the first address is the default; `isDefault: true` moves the default; the default cannot be switched off, only moved (`fields.isDefault`). Another user's address is `404`.
+
+`deliveringShops` lists the active shops whose delivery distance covers the pin (straight line × road factor ≤ `maxKm` of the shop's fee rule, else the platform default), nearest first. `distanceKm` is the straight line with two decimals. A shop with no fee rule at all is not listed.
+| `DELETE` | `/me` | user | `{ "confirm": "DELETE" }` | `204`, account anonymised (not built yet: it needs orders, so it comes with the order prompts) |
 | `GET` | `/shops/{slug}/buy-again` | user | — | `{ "data": [ product + available + current price ] }` |
 
 ---

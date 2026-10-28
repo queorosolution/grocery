@@ -15,6 +15,7 @@ import (
 	"gp/internal/shared/httpx"
 	"gp/internal/shop"
 	"gp/internal/team"
+	"gp/internal/user"
 )
 
 // Base is the path prefix of every API route.
@@ -31,7 +32,9 @@ type Deps struct {
 	// Shop serves shops, settings, hours and payment accounts; Audit the log.
 	Shop *shop.Handler
 	// Delivery serves fee rules and delivery slots.
-	Delivery     *delivery.Handler
+	Delivery *delivery.Handler
+	// User serves the signed-in customer's name, phone and addresses.
+	User         *user.Handler
 	Audit        *audit.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
 	// Memberships loads the caller's roles for admin and perm: routes. Nil

@@ -19,6 +19,7 @@ import (
 	"gp/internal/shared/enum"
 	"gp/internal/shared/ids"
 	"gp/internal/shared/logx"
+	"gp/internal/shared/pepper"
 	"gp/internal/shared/ratelimit"
 	"gp/internal/shared/secrets"
 	"gp/internal/team"
@@ -49,11 +50,7 @@ func (s *Service) jwtKey(ctx context.Context) ([]byte, error) {
 // ipKey hashes an address with the pepper, so neither the sessions table nor
 // the rate counters ever hold a raw IP.
 func (s *Service) ipKey(ctx context.Context, ip string) ([]byte, error) {
-	pepper, err := s.secrets.Get(ctx, "ip/pepper")
-	if err != nil {
-		return nil, err
-	}
-	return crypt.HMAC([]byte(pepper), []byte(ip)), nil
+	return pepper.Hash(ctx, s.secrets, pepper.IP, ip)
 }
 
 // SignIn verifies the Google token and opens a session. The IP limit runs

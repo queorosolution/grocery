@@ -5,22 +5,24 @@ import (
 	"testing"
 )
 
-// AdminAPI calls the real API as the super admin who passed the authenticator
-// check. Paths start after /v1.
-type AdminAPI struct {
+// Client calls the real API with one session's cookies. Paths start after /v1.
+type Client struct {
 	*App
 	Session Session
 }
 
-// AsAdmin signs in the super admin once and returns a client for admin routes.
-func (a *App) AsAdmin() AdminAPI { return AdminAPI{App: a, Session: a.Admin()} }
+// As returns a client for a signed-in session.
+func (a *App) As(s Session) Client { return Client{App: a, Session: s} }
 
-func (c AdminAPI) Call(method, path, body string) *httptest.ResponseRecorder {
+// AsAdmin signs in the super admin (authenticator check passed) and returns a client.
+func (a *App) AsAdmin() Client { return a.As(a.Admin()) }
+
+func (c Client) Call(method, path, body string) *httptest.ResponseRecorder {
 	return c.App.Call(method, "/v1"+path, body, c.Session.Cookies()...)
 }
 
 // OK calls and fails the test on any answer of 300 or more.
-func (c AdminAPI) OK(method, path, body string) *httptest.ResponseRecorder {
+func (c Client) OK(method, path, body string) *httptest.ResponseRecorder {
 	c.T.Helper()
 	w := c.Call(method, path, body)
 	if w.Code >= 300 {
@@ -44,7 +46,7 @@ func ErrorOf(t *testing.T, w *httptest.ResponseRecorder) APIError {
 }
 
 // Expect fails the test unless the call answers status with the error code.
-func (c AdminAPI) Expect(method, path, body string, status int, code string) APIError {
+func (c Client) Expect(method, path, body string, status int, code string) APIError {
 	c.T.Helper()
 	w := c.Call(method, path, body)
 	e := ErrorOf(c.T, w)

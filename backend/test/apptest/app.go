@@ -21,10 +21,12 @@ import (
 	"gp/internal/auth"
 	"gp/internal/delivery"
 	apihttp "gp/internal/http"
+	"gp/internal/notify"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/config"
 	"gp/internal/shop"
 	"gp/internal/team"
+	"gp/internal/user"
 	"gp/test/fakes"
 	"gp/test/testdb"
 )
@@ -63,7 +65,9 @@ type App struct {
 	Handler http.Handler
 	Deps    apihttp.Deps
 	Secrets *Secrets
-	ips     int
+	// SMS keeps the messages the API tried to send (OTP codes).
+	SMS *fakes.Outbox
+	ips int
 }
 
 func New(t *testing.T) *App {
@@ -75,20 +79,25 @@ func New(t *testing.T) *App {
 		GoogleClientID: ClientID, SuperAdminEmails: []string{AdminEmail}, PlatformName: "TestShop",
 	}
 	sec := &Secrets{values: map[string]string{
-		"enc/key":   "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-		"jwt/key":   "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-		"ip/pepper": "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
+		"enc/key":    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		"jwt/key":    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		"ip/pepper":  "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
+		"otp/pepper": "b3RwcGVwcGVyb3RwcGVwcGVyb3RwcGVwcGVyb3A=",
 	}}
 	teamSvc := team.NewService(env.DB)
 	svc := auth.NewService(cfg, env.DB, sec, auth.NewOIDCVerifier(oidc.Issuer, ClientID), teamSvc)
 	shopSvc := shop.NewService(env.DB, sec, true)
+	deliverySvc := delivery.NewService(env.DB, shopSvc)
+	sms := &fakes.Outbox{}
+	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
 	deps := apihttp.Deps{
 		Config: cfg, Auth: auth.NewHandler(svc, cfg), Team: team.NewHandler(teamSvc), Memberships: teamSvc,
 		Shop:     shop.NewHandler(shopSvc),
-		Delivery: delivery.NewHandler(delivery.NewService(env.DB, shopSvc)),
+		Delivery: delivery.NewHandler(deliverySvc),
+		User:     user.NewHandler(userSvc, svc),
 		Audit:    audit.NewHandler(env.DB),
 	}
-	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec}
+	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.

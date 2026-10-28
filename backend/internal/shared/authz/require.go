@@ -114,3 +114,13 @@ func ScopeFrom(ctx context.Context) (db.Scope, bool) {
 	s, ok := ctx.Value(scopeKey{}).(db.Scope)
 	return s, ok
 }
+
+// UserScope is the scope of a signed-in user's own request ("me" routes). It
+// fails closed: a request without a user is UNAUTHENTICATED, never an empty scope.
+func UserScope(ctx context.Context) (db.Scope, error) {
+	s, ok := ScopeFrom(ctx)
+	if !ok || s.UserID == uuid.Nil {
+		return db.Scope{}, apperr.New(apperr.Unauthenticated)
+	}
+	return s, nil
+}

@@ -350,3 +350,8 @@ func (s *Service) Exists(ctx context.Context, tx *db.Tx, id uuid.UUID) (bool, er
 func (s *Service) IDBySlug(ctx context.Context, tx *db.Tx, slug string) (uuid.UUID, bool, error) {
 	return activeIDBySlug(ctx, tx, slug)
 }
+
+// ActiveLocations is where each active shop is, for "which shops deliver to this pin".
+func (s *Service) ActiveLocations(ctx context.Context, tx *db.Tx) ([]Location, error) {
+	return activeLocations(ctx, tx)
+}
