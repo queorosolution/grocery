@@ -11,15 +11,18 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 
+	"gp/internal/audit"
 	"gp/internal/auth"
 	apihttp "gp/internal/http"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/config"
+	"gp/internal/shop"
 	"gp/internal/team"
 	"gp/test/fakes"
 	"gp/test/testdb"
@@ -32,10 +35,25 @@ const (
 	DefaultIP  = "198.51.100.1"
 )
 
-// secrets answers secrets.Getter from a map; the values are base64 of 32 bytes.
-type secrets map[string]string
+// Secrets is an in-memory secret store; the preset values are base64 of 32 bytes.
+// Everything written through Put is kept, so tests can see what was stored.
+type Secrets struct {
+	mu     sync.Mutex
+	values map[string]string
+}
 
-func (s secrets) Get(_ context.Context, name string) (string, error) { return s[name], nil }
+func (s *Secrets) Get(_ context.Context, name string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.values[name], nil
+}
+
+func (s *Secrets) Put(_ context.Context, name, value string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.values[name] = value
+	return nil
+}
 
 type App struct {
 	T       *testing.T
@@ -43,6 +61,7 @@ type App struct {
 	OIDC    *fakes.OIDC
 	Handler http.Handler
 	Deps    apihttp.Deps
+	Secrets *Secrets
 	ips     int
 }
 
@@ -54,17 +73,19 @@ func New(t *testing.T) *App {
 		Env: config.EnvDev, APIBaseURL: "https://api.example.test", AllowedOrigins: []string{WebOrigin},
 		GoogleClientID: ClientID, SuperAdminEmails: []string{AdminEmail}, PlatformName: "TestShop",
 	}
-	sec := secrets{
+	sec := &Secrets{values: map[string]string{
 		"enc/key":   "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 		"jwt/key":   "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-		"ip/pepper": "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
-	}
+		"ip/pepper": "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
+	}}
 	teamSvc := team.NewService(env.DB)
 	svc := auth.NewService(cfg, env.DB, sec, auth.NewOIDCVerifier(oidc.Issuer, ClientID), teamSvc)
 	deps := apihttp.Deps{
 		Config: cfg, Auth: auth.NewHandler(svc, cfg), Team: team.NewHandler(teamSvc), Memberships: teamSvc,
+		Shop:  shop.NewHandler(shop.NewService(env.DB, sec, true)),
+		Audit: audit.NewHandler(env.DB),
 	}
-	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps}
+	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.

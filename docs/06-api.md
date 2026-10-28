@@ -334,11 +334,11 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 |---|---|---|
 | Shops | `GET /shops`, `POST /shops`, `GET /shops/{id}`, `PATCH /shops/{id}` | Profile fields. Create, or a change to slug / name / logo / status, adds a `site.rebuild` event (D30). |
 | | `PUT /shops/{id}/settings` | All `shop_settings` fields (validated against enums) |
-| | `PUT /shops/{id}/hours` | `{ "days": [ { "weekday": 1, "opens": "08:00", "closes": "21:00" } ] }` |
-| | `POST /shops/{id}/accepting` | `{ "on": true }` — refused with `SHOP_NOT_READY` and a list of missing items if not ready |
+| | `PUT /shops/{id}/hours` | `{ "days": [ { "weekday": 1, "opens": "08:00", "closes": "21:00" } ] }`. Replaces the whole week. `weekday` is ISO (1 = Monday … 7 = Sunday). Times are Colombo time. `"24:00"` is allowed only as `closes`; the closing minute itself is closed. A day with no row is closed. |
+| | `POST /shops/{id}/accepting` | `{ "on": true }` — refused with `SHOP_NOT_READY` if not ready; `error.fields` has one entry per missing item (`{ "PAYMENT_ACCOUNT": "missing" }`). Turning off always works. |
 | | `POST /shops/{id}/cart-tenant` | Creates the cart service tenant (platform key), saves tenant id + public key |
-| | `GET /shops/{id}/readiness` | `{ "ready": false, "missing": ["PAYMENT_ACCOUNT", "FUTURE_SLOT"] }` |
-| Payment accounts | `GET /payment-accounts`, `POST /payment-accounts`, `PATCH /payment-accounts/{id}` | `merchantSecret` is **write-only** → stored in SSM, never returned |
+| | `GET /shops/{id}/readiness` | `{ "ready": false, "missing": ["PAYMENT_ACCOUNT", "FUTURE_SLOT"] }`. Items: `SHOP_ACTIVE`, `HOURS`, `PAYMENT_ACCOUNT`, `FUTURE_SLOT` (only for `SLOT` delivery). |
+| Payment accounts | `GET /payment-accounts`, `POST /payment-accounts`, `PATCH /payment-accounts/{id}` | `merchantSecret` is **write-only** → stored in SSM at `payhere/<accountId>`, never returned, never written to the audit log (only `secretRotated: true`). `MANUAL` accounts take no credentials. |
 | Fee rules | `GET /fee-rules`, `PUT /fee-rules/default`, `PUT /fee-rules/shops/{shopId}`, `POST /fee-rules/preview` | Preview: `{ shopId, distanceKm, weightKg, itemsCents }` → fee |
 | Slots | `GET /shops/{id}/slots?from=&to=`, `POST /shops/{id}/slots`, `PATCH /slots/{id}`, `POST /shops/{id}/slots/copy-week` | Create body: `{ "slots": [ { startsAt, endsAt, cutoffAt, capacity } ] }` (max 50) |
 | Catalog | `GET/POST /categories`, `PATCH /categories/{id}`, `GET/POST /products`, `PATCH /products/{id}`, `PUT /shops/{id}/category-markups` | |
@@ -362,7 +362,7 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 | Tickets | `GET /tickets?status=`, `POST /tickets/{id}/resolve` | |
 | Payouts | `GET /payouts?shopId=`, `POST /payouts` (`{ shopId, from, to }` → DRAFT with amount from ledger), `POST /payouts/{id}/paid` (`{ reference }`) | |
 | People | `GET /users?q=`, `PATCH /users/{id}` (`{ status }`), `POST /invites` (`{ email, role, shopId }`), `DELETE /invites/{id}` | `q` is a prefix of e-mail or name (max 50 rows, newest first). `status` is `ACTIVE` or `BLOCKED`; blocking ends every session; an admin cannot block themselves (`403`). Invites: `SHOP_OWNER` / `SHOP_STAFF` / `SHOP_DRIVER` need `shopId`, `PLATFORM_DRIVER` must not have one; `201 { invite, token }` (token shown once); revoking an unused invite is `204`, otherwise `404` |
-| Insight | `GET /dashboard?from=&to=`, `GET /notifications/usage?from=&to=`, `GET /audit?entity=&entityId=&cursor=` | |
+| Insight | `GET /dashboard?from=&to=`, `GET /notifications/usage?from=&to=`, `GET /audit?entity=&entityId=&cursor=` | Audit: `{ "data": [ { id, actorId, actorRole, action, entity, entityId, shopId, before, after, at } ], "nextCursor": "" }`, newest first, 50 per page. Secret-looking keys in `before` / `after` are masked. |
 
 ## 11. Uploads
 

@@ -20,6 +20,16 @@ type fakeSSM struct {
 	calls  int
 	err    error
 	last   *ssm.GetParameterInput
+	put    *ssm.PutParameterInput
+}
+
+func (f *fakeSSM) PutParameter(_ context.Context, in *ssm.PutParameterInput, _ ...func(*ssm.Options)) (*ssm.PutParameterOutput, error) {
+	f.put = in
+	if f.err != nil {
+		return nil, f.err
+	}
+	f.values[aws.ToString(in.Name)] = aws.ToString(in.Value)
+	return &ssm.PutParameterOutput{}, nil
 }
 
 func (f *fakeSSM) GetParameter(_ context.Context, in *ssm.GetParameterInput, _ ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
@@ -143,5 +153,50 @@ func TestRejectsBadNames(t *testing.T) {
 		if _, err := c.Get(context.Background(), name); err == nil {
 			t.Errorf("name %q accepted", name)
 		}
+	}
+}
+
+func TestPutWritesSecureStringAndRefreshesCache(t *testing.T) {
+	restore := clock.Freeze(t0)
+	defer restore()
+	api := &fakeSSM{values: map[string]string{"/gp/dev/payhere/a1": "old"}}
+	c, _ := New(cfg(config.EnvDev, false), api, nil)
+	ctx := context.Background()
+
+	if v, _ := c.Get(ctx, "payhere/a1"); v != "old" {
+		t.Fatalf("got %q", v)
+	}
+	if err := c.Put(ctx, "payhere/a1", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if api.put.Type != ssmtypes.ParameterTypeSecureString || !aws.ToBool(api.put.Overwrite) || aws.ToString(api.put.Name) != "/gp/dev/payhere/a1" {
+		t.Fatalf("put = %+v", api.put)
+	}
+	if v, _ := c.Get(ctx, "payhere/a1"); v != "new" {
+		t.Fatalf("cache not refreshed: %q", v)
+	}
+}
+
+func TestPutErrorsNeverHoldTheValue(t *testing.T) {
+	api := &fakeSSM{values: map[string]string{}, err: errors.New("throttled")}
+	c, _ := New(cfg(config.EnvDev, false), api, nil)
+	err := c.Put(context.Background(), "payhere/a1", "super-secret-value")
+	if err == nil || strings.Contains(err.Error(), "super-secret-value") {
+		t.Fatalf("err = %v", err)
+	}
+	for _, bad := range [][2]string{{"Bad Name", "v"}, {"payhere/a1", ""}} {
+		if err := c.Put(context.Background(), bad[0], bad[1]); err == nil {
+			t.Errorf("Put(%q, %q) was accepted", bad[0], bad[1])
+		}
+	}
+}
+
+func TestPutInLocalModeStaysInMemory(t *testing.T) {
+	c, _ := New(cfg(config.EnvLocal, true), nil, func(string) string { return "" })
+	if err := c.Put(context.Background(), "payhere/a1", "v1"); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := c.Get(context.Background(), "payhere/a1"); err != nil || v != "v1" {
+		t.Fatalf("got %q, %v", v, err)
 	}
 }

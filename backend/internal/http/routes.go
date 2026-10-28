@@ -46,5 +46,24 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodDelete, "/admin/invites/{id}", Admin, d.Team.AdminRevokeInvite},
 		)
 	}
+	if d.Shop != nil {
+		table = append(table,
+			Route{nethttp.MethodGet, "/shops", Public, d.Shop.PublicList},
+			Route{nethttp.MethodGet, "/admin/shops", Admin, d.Shop.List},
+			Route{nethttp.MethodPost, "/admin/shops", Admin, d.Shop.Create},
+			Route{nethttp.MethodGet, "/admin/shops/{id}", Admin, d.Shop.Get},
+			Route{nethttp.MethodPatch, "/admin/shops/{id}", Admin, d.Shop.Update},
+			Route{nethttp.MethodPut, "/admin/shops/{id}/settings", Admin, d.Shop.PutSettings},
+			Route{nethttp.MethodPut, "/admin/shops/{id}/hours", Admin, d.Shop.PutHours},
+			Route{nethttp.MethodPost, "/admin/shops/{id}/accepting", Admin, d.Shop.Accepting},
+			Route{nethttp.MethodGet, "/admin/shops/{id}/readiness", Admin, d.Shop.Readiness},
+			Route{nethttp.MethodGet, "/admin/payment-accounts", Admin, d.Shop.Accounts},
+			Route{nethttp.MethodPost, "/admin/payment-accounts", Admin, d.Shop.CreateAccount},
+			Route{nethttp.MethodPatch, "/admin/payment-accounts/{id}", Admin, d.Shop.UpdateAccount},
+		)
+	}
+	if d.Audit != nil {
+		table = append(table, Route{nethttp.MethodGet, "/admin/audit", Admin, d.Audit.List})
+	}
 	return table
 }

@@ -113,7 +113,7 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 		id, err = pathID(r, "membershipId")
 	}
 	if err == nil {
-		err = h.svc.Remove(r.Context(), sc.ShopID, id)
+		err = h.svc.Remove(r.Context(), sc, sc.ShopID, id)
 	}
 	if err != nil {
 		httpx.Error(w, r, err)
@@ -142,9 +142,13 @@ func (h *Handler) AdminInvite(w http.ResponseWriter, r *http.Request) {
 
 // AdminRevokeInvite handles DELETE /admin/invites/{id}.
 func (h *Handler) AdminRevokeInvite(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r, "id")
+	sc, err := scope(r)
+	var id uuid.UUID
 	if err == nil {
-		err = h.svc.RevokeInvite(r.Context(), id)
+		id, err = pathID(r, "id")
+	}
+	if err == nil {
+		err = h.svc.RevokeInvite(r.Context(), sc, id)
 	}
 	if err != nil {
 		httpx.Error(w, r, err)

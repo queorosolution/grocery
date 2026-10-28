@@ -33,10 +33,23 @@ var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*(/[a-z0-9][a-z0-9_-]*)*$`)
 // ParameterAPI is the part of the SSM client we use, so tests can fake it.
 type ParameterAPI interface {
 	GetParameter(ctx context.Context, in *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
+	PutParameter(ctx context.Context, in *ssm.PutParameterInput, opts ...func(*ssm.Options)) (*ssm.PutParameterOutput, error)
 }
 
 type Getter interface {
 	Get(ctx context.Context, name string) (string, error)
+}
+
+// Store reads and writes secrets; *Client is the real one.
+type Store interface {
+	Getter
+	Putter
+}
+
+// Putter writes secrets that the admin API owns (PayHere merchant secrets,
+// connector connection strings). The value is never returned by any API.
+type Putter interface {
+	Put(ctx context.Context, name, value string) error
 }
 
 type entry struct {
@@ -48,6 +61,7 @@ type Client struct {
 	prefix  string
 	api     ParameterAPI
 	environ func(string) string // set only in local env-mode
+	local   map[string]string   // values written in local env-mode, kept in memory only
 
 	mu    sync.Mutex
 	cache map[string]entry
@@ -56,7 +70,7 @@ type Client struct {
 // New builds the client the config asks for. In local env-mode no SSM client is
 // needed; everywhere else api must be set.
 func New(cfg *config.Config, api ParameterAPI, getenv func(string) string) (*Client, error) {
-	c := &Client{prefix: cfg.SSMPrefix, cache: map[string]entry{}}
+	c := &Client{prefix: cfg.SSMPrefix, cache: map[string]entry{}, local: map[string]string{}}
 	if cfg.IsLocal() && cfg.SecretsFromEnv {
 		c.environ = getenv
 		return c, nil
@@ -110,7 +124,43 @@ func (c *Client) Get(ctx context.Context, name string) (string, error) {
 	return value, nil
 }
 
+// Put stores a SecureString parameter, replacing any earlier value, and drops
+// the cached copy so the next read sees it. In local env-mode the value stays in
+// memory only.
+func (c *Client) Put(ctx context.Context, name, value string) error {
+	if !nameRe.MatchString(name) {
+		return fmt.Errorf("secrets: invalid name %q", name)
+	}
+	if value == "" {
+		return errors.New("secrets: empty value")
+	}
+	if c.environ != nil {
+		c.mu.Lock()
+		c.local[name] = value
+		c.mu.Unlock()
+		return nil
+	}
+	if _, err := c.api.PutParameter(ctx, &ssm.PutParameterInput{
+		Name:      aws.String(c.prefix + "/" + name),
+		Value:     aws.String(value),
+		Type:      ssmtypes.ParameterTypeSecureString,
+		Overwrite: aws.Bool(true),
+	}); err != nil {
+		return fmt.Errorf("secrets: write %s: %w", name, err) // the value is not in the error
+	}
+	c.mu.Lock()
+	delete(c.cache, name)
+	c.mu.Unlock()
+	return nil
+}
+
 func (c *Client) fromEnv(name string) (string, error) {
+	c.mu.Lock()
+	v, ok := c.local[name]
+	c.mu.Unlock()
+	if ok {
+		return v, nil
+	}
 	key := "SECRET_" + strings.ToUpper(strings.NewReplacer("/", "_", "-", "_").Replace(name))
 	if v := c.environ(key); v != "" {
 		return v, nil

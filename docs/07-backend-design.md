@@ -25,6 +25,7 @@ flowchart LR
 | Need | Use | File |
 |---|---|---|
 | Read config at start-up | `config.Load()` | `internal/shared/config` |
+| Store a secret (write-only) | `secrets.Putter.Put(ctx, name, value)`; the value is never read back by an API | `internal/shared/secrets` |
 | Get a secret | `secrets.Getter.Get(ctx, name)`; the `*secrets.Client` is built once at start-up and passed in (cached 5 min) | `internal/shared/secrets` |
 | Run SQL in a transaction with scope | `database.Tx(ctx, scope, fn)` (`*db.DB` is created once at start-up with `db.Connect` and passed in; `fn` gets a `*db.Tx`) | `internal/shared/db` |
 | Run work after commit | `tx.AfterCommit(fn)` | `internal/shared/db` |
@@ -41,9 +42,9 @@ flowchart LR
 | Encrypt / hash secrets | `crypt.Seal`, `crypt.Open`, `crypt.HMAC`, `crypt.Equal` | `internal/shared/crypt` |
 | Rate limit | `ratelimit.Hit(ctx, db, key, limit, window)`. Runs in its **own committed transaction**, so a refused request still counts. Put a keyed hash in `key`, never an e-mail or raw IP. | `internal/shared/ratelimit` |
 | Caller address | `httpx.ClientIP(r)`: for throttling and hashing only, never for access decisions | `internal/shared/httpx` |
-| Emit an event | `events.Add(tx, events.OrderPaid, shopID, orderID, data)` | `internal/events` |
-| Create a timer | `events.Add(tx, events.TimerSchedule, …)` (same outbox path) | `internal/events` |
-| Write audit row | `audit.Write(tx, actor, "shop.settings", "shop", id, before, after)` | `internal/audit` |
+| Emit an event | `events.Add(ctx, tx, events.Event{Type: …, ShopID: …, EntityID: …, Payload: …})` (same tx as the change) | `internal/events` |
+| Create a timer | `events.Add(ctx, tx, events.Event{Type: events.TimerSchedule, …})` (same outbox path) | `internal/events` |
+| Write audit row | `audit.Write(ctx, tx, scope, audit.Entry{Action: "shop.settings", Entity: "shop", EntityID: id, ShopID: shopID, Before: b, After: a})` (before / after pass through `logx.RedactSecrets`) | `internal/audit` |
 | Log | `logx.From(ctx).Info("…", "orderId", id)` (redacts phones, tokens) | `internal/shared/logx` |
 | Enum values | `enum.OrderStatusPaid` etc. (generated) | `internal/shared/enum` |
 

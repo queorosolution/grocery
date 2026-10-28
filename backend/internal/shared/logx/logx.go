@@ -26,6 +26,9 @@ var sensitiveKeys = map[string]bool{
 	"merchantsecret": true, "connectionstring": true, "otp": true,
 }
 
+// personalKeys are sensitive in logs but are facts an audit trail records.
+var personalKeys = map[string]bool{"phone": true, "email": true}
+
 var (
 	// 9 to 15 digits, with optional spaces or dashes between them, with or without "+".
 	phoneLike = regexp.MustCompile(`\+?\b\d(?:[ -]?\d){8,14}\b`)
@@ -33,8 +36,16 @@ var (
 )
 
 func isSensitiveKey(key string) bool {
-	key = strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(key))
-	return sensitiveKeys[key]
+	return sensitiveKeys[normalizeKey(key)]
+}
+
+func isSecretKey(key string) bool {
+	k := normalizeKey(key)
+	return sensitiveKeys[k] && !personalKeys[k]
+}
+
+func normalizeKey(key string) string {
+	return strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(key))
 }
 
 // RedactString masks phone numbers and e-mail addresses inside free text.
@@ -66,7 +77,14 @@ func redactAttr(_ []string, a slog.Attr) slog.Attr {
 
 // sanitizeAny walks structs, maps and slices through their JSON form, so a
 // logged struct with a Phone field is masked like a flat attribute.
-func sanitizeAny(v any) any {
+func sanitizeAny(v any) any { return sanitize(v, true) }
+
+// RedactSecrets is for data we store on purpose (audit before / after): it
+// masks values under secret-looking keys but keeps phone numbers and e-mail
+// addresses, which are the facts an audit trail exists to record.
+func RedactSecrets(v any) any { return sanitize(v, false) }
+
+func sanitize(v any, maskText bool) any {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return "[unloggable]"
@@ -77,27 +95,29 @@ func sanitizeAny(v any) any {
 	if err := dec.Decode(&tree); err != nil {
 		return "[unloggable]"
 	}
-	return walk(tree)
+	return walk(tree, maskText)
 }
 
-func walk(v any) any {
+func walk(v any, maskText bool) any {
 	switch t := v.(type) {
 	case map[string]any:
 		for k, val := range t {
-			if isSensitiveKey(k) {
+			if (maskText && isSensitiveKey(k)) || (!maskText && isSecretKey(k)) {
 				t[k] = redacted
 			} else {
-				t[k] = walk(val)
+				t[k] = walk(val, maskText)
 			}
 		}
 		return t
 	case []any:
 		for i := range t {
-			t[i] = walk(t[i])
+			t[i] = walk(t[i], maskText)
 		}
 		return t
 	case string:
-		return RedactString(t)
+		if maskText {
+			return RedactString(t)
+		}
 	}
 	return v
 }

@@ -2,11 +2,14 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"gp/internal/audit"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
@@ -63,24 +66,33 @@ func (s *Service) SearchUsers(ctx context.Context, q string) ([]AdminUser, error
 
 // SetUserStatus blocks or unblocks an account. Blocking ends every session at
 // once (AUTHN-08). An admin cannot block themselves.
-func (s *Service) SetUserStatus(ctx context.Context, actor, id uuid.UUID, status enum.UserStatus) error {
+func (s *Service) SetUserStatus(ctx context.Context, scope db.Scope, id uuid.UUID, status enum.UserStatus) error {
 	if err := validate.New().Check("status", status == enum.UserStatusActive || status == enum.UserStatusBlocked, "invalid").Err(); err != nil {
 		return err
 	}
-	if id == actor && status != enum.UserStatusActive {
+	if id == scope.UserID && status != enum.UserStatusActive {
 		return apperr.New(apperr.Forbidden)
 	}
 	return s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
-		tag, err := tx.Exec(ctx, `UPDATE users SET status = $2 WHERE id = $1 AND status <> 'DELETED'`, id, status)
+		var before enum.UserStatus
+		err := tx.QueryRow(ctx, `SELECT status FROM users WHERE id = $1 AND status <> 'DELETED' FOR UPDATE`, id).Scan(&before)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.New(apperr.NotFound)
+		}
 		if err != nil {
 			return err
 		}
-		if tag.RowsAffected() == 0 {
-			return apperr.New(apperr.NotFound)
+		if _, err := tx.Exec(ctx, `UPDATE users SET status = $2 WHERE id = $1`, id, status); err != nil {
+			return err
 		}
 		if status == enum.UserStatusBlocked {
-			return revokeAllSessions(ctx, tx, id)
+			if err := revokeAllSessions(ctx, tx, id); err != nil {
+				return err
+			}
 		}
-		return nil
+		return audit.Write(ctx, tx, scope, audit.Entry{
+			Action: "user.status", Entity: "user", EntityID: id.String(),
+			Before: map[string]enum.UserStatus{"status": before}, After: map[string]enum.UserStatus{"status": status},
+		})
 	})
 }

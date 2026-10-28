@@ -65,13 +65,13 @@ func (d *DB) Tx(ctx context.Context, scope Scope, fn func(ctx context.Context, t
 		return fmt.Errorf("db: begin: %w", err)
 	}
 	tx := &Tx{tx: raw}
+	committed := false
 	defer func() {
-		if p := recover(); p != nil {
-			_ = raw.Rollback(context.WithoutCancel(ctx))
-			panic(p)
-		}
-		if err != nil {
-			// A cancelled request context must not leave the transaction open.
+		// Roll back unless we committed. This also covers a panic and a callback
+		// that ends its goroutine (runtime.Goexit, e.g. t.Fatal in a test), which
+		// would otherwise leave the connection stuck in an open transaction. A
+		// cancelled request context must not leave it open either.
+		if !committed {
 			_ = raw.Rollback(context.WithoutCancel(ctx))
 		}
 	}()
@@ -90,6 +90,7 @@ func (d *DB) Tx(ctx context.Context, scope Scope, fn func(ctx context.Context, t
 	if err = raw.Commit(ctx); err != nil {
 		return fmt.Errorf("db: commit: %w", err)
 	}
+	committed = true
 	d.runAfterCommit(ctx, tx.after)
 	return nil
 }
