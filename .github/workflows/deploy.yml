@@ -16,7 +16,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GOTOOLCHAIN: local
   SAM_CLI_TELEMETRY: "0"
 
 jobs:

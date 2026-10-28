@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	defaultAdminURL = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
-	appPassword     = "app_rw"
+	defaultAdminURL = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable" // #nosec G101 -- local test database
+	appPassword     = "app_rw"                                                                 // #nosec G101 -- local test role
 	// One lock for role and database setup: concurrent packages would otherwise
 	// race on creating the shared app_rw role.
 	setupLock = 7234001

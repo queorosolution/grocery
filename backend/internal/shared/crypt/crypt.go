@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
@@ -97,7 +98,9 @@ func (r *Ring) Open(sealed, aad []byte) ([]byte, error) {
 func HMAC(key []byte, parts ...[]byte) []byte {
 	mac := hmac.New(sha256.New, key)
 	for _, p := range parts {
-		mac.Write([]byte{byte(len(p) >> 24), byte(len(p) >> 16), byte(len(p) >> 8), byte(len(p))})
+		var n [4]byte
+		binary.BigEndian.PutUint32(n[:], uint32(len(p))) // #nosec G115 -- length of an in-memory slice
+		mac.Write(n[:])
 		mac.Write(p)
 	}
 	return mac.Sum(nil)

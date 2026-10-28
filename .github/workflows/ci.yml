@@ -14,10 +14,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Never let a newer toolchain download itself: the pinned one must be used.
-  GOTOOLCHAIN: local
-
 jobs:
   backend:
     runs-on: ubuntu-24.04
@@ -46,9 +42,9 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Install analysis tools (pinned)
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.8
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          go install honnef.co/go/tools/cmd/staticcheck@2026.2.2
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Contracts match schema and generated code
         run: make check-contracts
