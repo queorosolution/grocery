@@ -49,12 +49,13 @@ flowchart LR
 ## 3. Request pipeline
 
 ```
-requestID → recover → accessLog → bodyLimit → corsAndCsrf → authn (optional) → route guard → handler
+requestID → securityHeaders → recover → accessLog → bodyLimit → corsAndCsrf → authn (optional) → route guard → handler
 ```
 
 | Step | Does |
 |---|---|
 | `requestID` | Sets `X-Request-Id` (ULID). |
+| `securityHeaders` | `nosniff`, HSTS, `Cache-Control: private, no-store` (public routes loosen it with `CachePublic`). |
 | `recover` | Panic → `500 INTERNAL`, logs stack. |
 | `accessLog` | Method, route pattern (not raw path), status, ms. No body, no query string values. |
 | `bodyLimit` | 64 KB (16 KB on webhooks). |
