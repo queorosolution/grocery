@@ -5,6 +5,7 @@ package http
 import (
 	nethttp "net/http"
 
+	"gp/internal/auth"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
 	"gp/internal/shared/config"
@@ -16,7 +17,10 @@ const Base = "/v1"
 
 // Deps is everything the router needs. Optional fields fail closed when nil.
 type Deps struct {
-	Config       *config.Config
+	Config *config.Config
+	// Auth serves sign-in, sessions and "me". Nil means no sign-in: only public
+	// routes work, and every guarded route answers 401.
+	Auth         *auth.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
 	Authorize    Authorizer
 	VerifySig    SigVerifier
@@ -28,6 +32,10 @@ func New(d Deps) nethttp.Handler {
 }
 
 func build(d Deps, table []Route) nethttp.Handler {
+	authenticate := d.Authenticate
+	if authenticate == nil && d.Auth != nil {
+		authenticate = d.Auth.Authenticate
+	}
 	g := guards{authorize: d.Authorize, verifySig: d.VerifySig}
 	mux := nethttp.NewServeMux()
 	byPattern := make(map[string]Route, len(table))
@@ -53,6 +61,6 @@ func build(d Deps, table []Route) nethttp.Handler {
 		httpx.AccessLog(),
 		httpx.BodyLimit(isSigned),
 		httpx.CORSAndCSRF(d.Config.AllowedOrigins, isSigned),
-		httpx.Authn(d.Authenticate),
+		httpx.Authn(authenticate),
 	)
 }

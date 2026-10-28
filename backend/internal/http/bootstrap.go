@@ -3,6 +3,7 @@ package http
 import (
 	nethttp "net/http"
 
+	"gp/internal/auth"
 	"gp/internal/shared/config"
 	"gp/internal/shared/httpx"
 )
@@ -14,8 +15,8 @@ func health(w nethttp.ResponseWriter, _ *nethttp.Request) {
 type bootstrapBody struct {
 	Platform platformInfo `json:"platform"`
 	Features featureInfo  `json:"features"`
-	// Me is null until sign-in exists (P07).
-	Me any `json:"me"`
+	// Me is null when signed out.
+	Me *auth.Me `json:"me"`
 }
 
 type platformInfo struct {
@@ -31,11 +32,20 @@ type featureInfo struct {
 }
 
 func bootstrap(d Deps) nethttp.HandlerFunc {
-	return func(w nethttp.ResponseWriter, _ *nethttp.Request) {
-		httpx.JSON(w, nethttp.StatusOK, bootstrapBody{
+	return func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		body := bootstrapBody{
 			Platform: platformFrom(d.Config),
 			Features: featureInfo{WhatsApp: d.Config.FeatureWhatsApp, ManualPayment: d.Config.FeatureManualPay},
-		})
+		}
+		if d.Auth != nil {
+			me, err := d.Auth.MeOrNil(r)
+			if err != nil {
+				httpx.Error(w, r, err)
+				return
+			}
+			body.Me = me
+		}
+		httpx.JSON(w, nethttp.StatusOK, body)
 	}
 }
 

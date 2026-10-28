@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	apihttp "gp/internal/http"
 	"gp/internal/shared/config"
 	"gp/internal/shared/logx"
+	"gp/internal/shared/secrets"
 )
 
 func main() {
@@ -42,9 +44,20 @@ func run() error {
 	}
 	logx.SetDefault(logx.New(cfg.LogLevel, os.Stdout))
 
+	ctx := context.Background()
+	sec, err := secrets.New(cfg, nil, os.Getenv)
+	if err != nil {
+		return err
+	}
+	deps, closeDB, err := apihttp.Wire(ctx, cfg, sec)
+	if err != nil {
+		return err
+	}
+	defer closeDB()
+
 	srv := &http.Server{
 		Addr:              ":8080",
-		Handler:           apihttp.New(apihttp.Deps{Config: cfg}),
+		Handler:           apihttp.New(deps),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	slog.Info("devserver listening", "addr", srv.Addr)

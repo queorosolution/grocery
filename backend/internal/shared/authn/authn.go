@@ -13,8 +13,9 @@ import (
 
 // Actor is a signed-in user as the access token describes them.
 type Actor struct {
-	UserID uuid.UUID
-	Roles  []enum.Role
+	UserID    uuid.UUID
+	SessionID uuid.UUID
+	Roles     []enum.Role
 	// TotpOK is true when this session passed the authenticator-app check.
 	TotpOK bool
 }

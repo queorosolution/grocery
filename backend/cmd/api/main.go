@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -12,6 +13,7 @@ import (
 	apihttp "gp/internal/http"
 	"gp/internal/shared/config"
 	"gp/internal/shared/logx"
+	"gp/internal/shared/secrets"
 )
 
 func main() {
@@ -23,7 +25,25 @@ func main() {
 	}
 	logx.SetDefault(logx.New(cfg.LogLevel, os.Stdout))
 
-	handler := apihttp.New(apihttp.Deps{Config: cfg})
+	ctx := context.Background()
+	ssm, err := secrets.NewSSM(ctx)
+	if err != nil {
+		slog.Error("secret store unavailable", "error", err.Error())
+		os.Exit(1)
+	}
+	sec, err := secrets.New(cfg, ssm, os.Getenv)
+	if err != nil {
+		slog.Error("secret store unavailable", "error", err.Error())
+		os.Exit(1)
+	}
+	deps, closeDB, err := apihttp.Wire(ctx, cfg, sec)
+	if err != nil {
+		slog.Error("start-up failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer closeDB()
+
+	handler := apihttp.New(deps)
 	// The adapter never logs the raw Lambda event.
 	lambda.Start(httpadapter.NewV2(handler).ProxyWithContext)
 }
