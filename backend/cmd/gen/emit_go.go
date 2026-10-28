@@ -171,7 +171,7 @@ func emitErrorCodes(c *Contract) (output, error) {
 	names := sortedKeys(c.ErrorCodes)
 	ids := make([]string, len(names))
 	for i, n := range names {
-		ids[i] = "Code" + pascal(n)
+		ids[i] = pascal(n) // apperr.SlotFull, as written in docs/07 §2
 		fmt.Fprintf(&b, "\t%s Code = %q\n", ids[i], n)
 	}
 	b.WriteString(")\n\n// Codes returns every contract error code, sorted by name.\n")

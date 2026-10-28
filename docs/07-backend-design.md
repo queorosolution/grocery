@@ -25,7 +25,7 @@ flowchart LR
 | Need | Use | File |
 |---|---|---|
 | Read config at start-up | `config.Load()` | `internal/shared/config` |
-| Get a secret | `secrets.Get(ctx, name)` (cached 5 min) | `internal/shared/secrets` |
+| Get a secret | `secrets.Getter.Get(ctx, name)`; the `*secrets.Client` is built once at start-up and passed in (cached 5 min) | `internal/shared/secrets` |
 | Run SQL in a transaction with scope | `db.Tx(ctx, scope, fn)` | `internal/shared/db` |
 | Run work after commit | `tx.AfterCommit(fn)` | `internal/shared/db` |
 | Return an error | `apperr.New(apperr.SlotFull)`, `apperr.Validation(fields)` | `internal/shared/apperr` |
