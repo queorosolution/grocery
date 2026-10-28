@@ -47,6 +47,7 @@ flowchart LR
 | Send a message (SMS, later WhatsApp) | `notify.Sender.Send(ctx, notify.Message{To, Template, Vars})`; the text comes from `notify/templates.go` | `internal/notify` |
 | Rate limit | `ratelimit.Hit(ctx, db, key, limit, window)`. Runs in its **own committed transaction**, so a refused request still counts. Put a keyed hash in `key`, never an e-mail or raw IP. | `internal/shared/ratelimit` |
 | Caller address | `httpx.ClientIP(r)`: for throttling and hashing only, never for access decisions | `internal/shared/httpx` |
+| Publish after commit (start-up) | `events.SetPublisher(events.NewPublisher(db, queue, scheduler))` | `internal/events` |
 | Emit an event | `events.Add(ctx, tx, events.Event{Type: …, ShopID: …, EntityID: …, Payload: …})` (same tx as the change) | `internal/events` |
 | Create a timer | `events.Add(ctx, tx, events.Event{Type: events.TimerSchedule, …})` (same outbox path) | `internal/events` |
 | Write audit row | `audit.Write(ctx, tx, scope, audit.Entry{Action: "shop.settings", Entity: "shop", EntityID: id, ShopID: shopID, Before: b, After: a})` (before / after pass through `logx.RedactSecrets`) | `internal/audit` |
@@ -221,10 +222,14 @@ sequenceDiagram
   Note over W,DB: outbox-sweep (every 15 min, open hours) resends rows with sent_at NULL and older than 2 min
 ```
 
-- `events.Dispatch` has a map `type → []consumer`. Adding a consumer is one line.
+- `events.Add` writes the row and registers the publish with `tx.AfterCommit`, so a rolled-back transaction never publishes. The publisher is set once at start-up with `events.SetPublisher` (the API Lambda); without a queue (local runs) rows wait for the sweep.
+- `Publisher.Publish` sends timers to Scheduler and everything else to SQS in batches of 10, then sets `sent_at` for the accepted ones. A refused or failed event keeps `sent_at` NULL and counts an attempt.
+- `events.Registry` has a map `type → []Consumer`. Adding a consumer is one `On` line (in `internal/worker/wire.go`). A repeated name or an unknown type panics at start-up.
+- **Exactly-once claim.** `Registry.Dispatch` runs each consumer in its own transaction that first inserts `(event_id, consumer)` into `processed_events`. A duplicate delivery finds the row and skips; a concurrent duplicate waits on the primary key until the first one commits (then skips) or rolls back (then runs). If the consumer fails, the transaction rolls back, the claim disappears, and the queue retries. The consumer gets that transaction, so its database changes and the claim commit together. External calls (SMS, HTTP) cannot be rolled back: keep them idempotent.
+- **Sweep** (`outbox.sweep`, direct invoke): up to 5 rounds of 100 unsent rows older than 2 minutes, oldest first, then deletes `processed_events` older than 7 days.
 - Consumers: `notify.OnOrderEvent`, `stats.Apply`, `catalog.OnDelivered` (buy-again), `cartclient.OnCatalogChanged`, `site.OnRebuild`, `finance` (none async — ledger is written in the transaction).
-- `site.rebuild` is sent to SQS with a **120 s delay**. When it arrives, the consumer checks `outbox` for a **newer** `site.rebuild` row; if there is one, it skips (that newer event will do the build). So a burst of shop edits makes one rebuild. Then it `POST`s the deploy hook URL from SSM (`pages/deploy-hook`) with a 5 s timeout; failures retry through SQS.
-- `timer.schedule` events are **not** sent to SQS; the publisher calls Scheduler `CreateSchedule` with name `ord-<id>-<kind>-<rev>`, `at(…)`, target `timer`, payload `{orderId, kind, revisionNo}`, `ActionAfterCompletion: DELETE`. `ConflictException` = already exists = success.
+- `site.rebuild` is sent to SQS with a **120 s delay**. When it arrives, the consumer (`site.Rebuilder`) checks `outbox` for a **newer** `site.rebuild` row; if there is one, it skips (that newer event will do the build). So a burst of shop edits makes one rebuild. Then it `POST`s the deploy hook URL from SSM (`pages/deploy-hook`, must be `https`) with a 5 s timeout. A failure, or a missing secret, is an error: the queue retries and the DLQ alarm fires. Errors never contain the URL.
+- `timer.schedule` events are **not** sent to SQS; the publisher calls Scheduler `CreateSchedule` with name `ord-<id>-<kind>-<rev>`, `at(…)` in UTC, target `timer`, payload `{orderId, kind, revisionNo}`, `ActionAfterCompletion: DELETE`. `ConflictException` = already exists = success. Write one with `events.AddTimer(ctx, tx, shopID, events.Timer{OrderID, Kind, RevisionNo, RunAt})`. A `RunAt` that is already past (or less than 30 s away) is moved to 30 s from now, because Scheduler refuses the past; the timer handler is a no-op when the order has moved on.
 - Timer handler: `order.Transition(ctx, systemScope, id, EXPIRED, {expectFrom: …, expectRevision: rev})`. Wrong state → no-op, return nil.
 
 ## 11. Catalog sync (`connector.Run`)
