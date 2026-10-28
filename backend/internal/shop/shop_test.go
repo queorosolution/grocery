@@ -11,7 +11,7 @@ import (
 
 func TestCreateShop(t *testing.T) {
 	f := newFixture(t)
-	w := f.call(http.MethodPost, "/admin/shops", newShop)
+	w := f.Call(http.MethodPost, "/admin/shops", newShop)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create = %d %s", w.Code, w.Body)
 	}
@@ -56,11 +56,11 @@ func TestCreateShopRefusals(t *testing.T) {
 	}
 	for name, c := range tests {
 		t.Run(name, func(t *testing.T) {
-			w := f.call(http.MethodPost, "/admin/shops", c.body)
+			w := f.Call(http.MethodPost, "/admin/shops", c.body)
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d %s", w.Code, w.Body)
 			}
-			if got := f.errorOf(w).Error.Fields; got[c.field] == "" {
+			if got := apptest.ErrorOf(f.a.T, w).Error.Fields; got[c.field] == "" {
 				t.Fatalf("fields = %v, want %q", got, c.field)
 			}
 		})
@@ -69,7 +69,7 @@ func TestCreateShopRefusals(t *testing.T) {
 	// Mass assignment: status and accepting cannot be sent on create.
 	for _, extra := range []string{`"status":"ACTIVE"`, `"acceptingOrders":true`, `"id":"00000000-0000-0000-0000-000000000001"`} {
 		body := with(`"lat"`, extra+`,"lat"`)
-		if w := f.call(http.MethodPost, "/admin/shops", strings.Replace(body, "krishna-super", "other-shop", 1)); w.Code != http.StatusBadRequest {
+		if w := f.Call(http.MethodPost, "/admin/shops", strings.Replace(body, "krishna-super", "other-shop", 1)); w.Code != http.StatusBadRequest {
 			t.Errorf("create with %s = %d, want 400", extra, w.Code)
 		}
 	}
@@ -87,20 +87,20 @@ func TestUpdateShop(t *testing.T) {
 	}
 
 	// A phone change is not baked into the site: no rebuild.
-	d = apptest.Decode[shop.Detail](t, f.ok(http.MethodPatch, f.shopPath(id, ""), `{"phone":"0712345678","addressText":"New road"}`))
+	d = apptest.Decode[shop.Detail](t, f.OK(http.MethodPatch, f.shopPath(id, ""), `{"phone":"0712345678","addressText":"New road"}`))
 	if *d.Shop.Phone != "+94712345678" || *d.Shop.AddressText != "New road" || rebuilds() != 1 {
 		t.Fatalf("phone update: %+v rebuilds %d", d.Shop, rebuilds())
 	}
 	// A name, logo, slug or status change is.
-	f.ok(http.MethodPatch, f.shopPath(id, ""), `{"name":"Krishna Supermarket"}`)
-	f.ok(http.MethodPatch, f.shopPath(id, ""), `{"logoUrl":"https://cdn.example.test/logo.png"}`)
-	f.ok(http.MethodPatch, f.shopPath(id, ""), `{"slug":"krishna"}`)
-	f.ok(http.MethodPatch, f.shopPath(id, ""), `{"status":"ACTIVE"}`)
+	f.OK(http.MethodPatch, f.shopPath(id, ""), `{"name":"Krishna Supermarket"}`)
+	f.OK(http.MethodPatch, f.shopPath(id, ""), `{"logoUrl":"https://cdn.example.test/logo.png"}`)
+	f.OK(http.MethodPatch, f.shopPath(id, ""), `{"slug":"krishna"}`)
+	f.OK(http.MethodPatch, f.shopPath(id, ""), `{"status":"ACTIVE"}`)
 	if rebuilds() != 5 {
 		t.Errorf("rebuild events = %d, want 5", rebuilds())
 	}
 	// An empty string clears an optional field.
-	d = apptest.Decode[shop.Detail](t, f.ok(http.MethodPatch, f.shopPath(id, ""), `{"logoUrl":""}`))
+	d = apptest.Decode[shop.Detail](t, f.OK(http.MethodPatch, f.shopPath(id, ""), `{"logoUrl":""}`))
 	if d.Shop.LogoURL != nil {
 		t.Errorf("logo not cleared: %v", *d.Shop.LogoURL)
 	}
@@ -111,18 +111,18 @@ func TestUpdateShop(t *testing.T) {
 		"unknown field": `{"acceptingOrders":true}`,
 		"id in body":    `{"id":"00000000-0000-0000-0000-000000000001"}`,
 	} {
-		if w := f.call(http.MethodPatch, f.shopPath(id, ""), body); w.Code != http.StatusBadRequest {
+		if w := f.Call(http.MethodPatch, f.shopPath(id, ""), body); w.Code != http.StatusBadRequest {
 			t.Errorf("%s = %d, want 400", name, w.Code)
 		}
 	}
-	if w := f.call(http.MethodPatch, f.shopPath(id, ""), `{"slug":"krishna"}`); w.Code != http.StatusOK {
+	if w := f.Call(http.MethodPatch, f.shopPath(id, ""), `{"slug":"krishna"}`); w.Code != http.StatusOK {
 		t.Errorf("keeping the same slug = %d", w.Code)
 	}
 	other := f.createShop(strings.Replace(newShop, "krishna-super", "other-shop", 1))
-	if w := f.call(http.MethodPatch, f.shopPath(other.Shop.ID, ""), `{"slug":"krishna"}`); w.Code != http.StatusBadRequest {
+	if w := f.Call(http.MethodPatch, f.shopPath(other.Shop.ID, ""), `{"slug":"krishna"}`); w.Code != http.StatusBadRequest {
 		t.Errorf("taking another shop's slug = %d, want 400", w.Code)
 	}
-	if w := f.call(http.MethodGet, f.shopPath(randomID(), ""), ""); w.Code != http.StatusNotFound {
+	if w := f.Call(http.MethodGet, f.shopPath(randomID(), ""), ""); w.Code != http.StatusNotFound {
 		t.Errorf("unknown shop = %d, want 404", w.Code)
 	}
 }
@@ -130,9 +130,9 @@ func TestUpdateShop(t *testing.T) {
 func TestSuspendingStopsOrders(t *testing.T) {
 	f := newFixture(t)
 	id := f.makeReady("krishna-super")
-	f.ok(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":true}`)
+	f.OK(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":true}`)
 
-	d := apptest.Decode[shop.Detail](t, f.ok(http.MethodPatch, f.shopPath(id, ""), `{"status":"SUSPENDED"}`))
+	d := apptest.Decode[shop.Detail](t, f.OK(http.MethodPatch, f.shopPath(id, ""), `{"status":"SUSPENDED"}`))
 	if d.Shop.AcceptingOrders {
 		t.Fatal("a suspended shop must stop accepting orders")
 	}
@@ -142,7 +142,7 @@ func TestPublicList(t *testing.T) {
 	f := newFixture(t)
 	live := f.createShop(newShop)
 	f.createShop(strings.Replace(newShop, "krishna-super", "draft-shop", 1))
-	f.ok(http.MethodPatch, f.shopPath(live.Shop.ID, ""), `{"status":"ACTIVE","logoUrl":"https://cdn.example.test/k.png"}`)
+	f.OK(http.MethodPatch, f.shopPath(live.Shop.ID, ""), `{"status":"ACTIVE","logoUrl":"https://cdn.example.test/k.png"}`)
 
 	w := f.a.Call(http.MethodGet, "/v1/shops?fields=slug", "") // no sign-in
 	if w.Code != http.StatusOK {

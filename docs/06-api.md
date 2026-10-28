@@ -113,7 +113,10 @@ Active shops: `{ "data": [ { "slug": "krishna-super", "name": "Krishna Super", "
 ```
 
 ### `GET /shops/{slug}/slots?days=3` — public
-Open slots for the next `days` (max 7) with `remaining = capacity − booked` (never below 0) and `cutoffAt`.
+Open slots for the next `days` (1–7, default 3; today counts as day 1, Colombo time) with `remaining = capacity − booked` (never below 0) and `cutoffAt`.
+- Only slots that are `OPEN` and before their cutoff are listed. A full slot is listed with `remaining: 0`, so the page can show "full".
+- Not cached (the numbers change with every order). Unknown or not-active shop → `404`.
+- `{ "data": [ { "id": "…", "startsAt": "…", "endsAt": "…", "cutoffAt": "…", "remaining": 3 } ] }`
 
 ### `GET /categories` — public, cacheable
 Category tree.
@@ -339,8 +342,8 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 | | `POST /shops/{id}/cart-tenant` | Creates the cart service tenant (platform key), saves tenant id + public key |
 | | `GET /shops/{id}/readiness` | `{ "ready": false, "missing": ["PAYMENT_ACCOUNT", "FUTURE_SLOT"] }`. Items: `SHOP_ACTIVE`, `HOURS`, `PAYMENT_ACCOUNT`, `FUTURE_SLOT` (only for `SLOT` delivery). |
 | Payment accounts | `GET /payment-accounts`, `POST /payment-accounts`, `PATCH /payment-accounts/{id}` | `merchantSecret` is **write-only** → stored in SSM at `payhere/<accountId>`, never returned, never written to the audit log (only `secretRotated: true`). `MANUAL` accounts take no credentials. |
-| Fee rules | `GET /fee-rules`, `PUT /fee-rules/default`, `PUT /fee-rules/shops/{shopId}`, `POST /fee-rules/preview` | Preview: `{ shopId, distanceKm, weightKg, itemsCents }` → fee |
-| Slots | `GET /shops/{id}/slots?from=&to=`, `POST /shops/{id}/slots`, `PATCH /slots/{id}`, `POST /shops/{id}/slots/copy-week` | Create body: `{ "slots": [ { startsAt, endsAt, cutoffAt, capacity } ] }` (max 50) |
+| Fee rules | `GET /fee-rules`, `PUT /fee-rules/default`, `PUT /fee-rules/shops/{id}`, `POST /fee-rules/preview` | `GET` → `{ "data": [ { shopId, rule, updatedAt } ] }`, default first (`shopId: null`). `PUT` replaces the whole rule; a field left out keeps its default. Rule: `{ baseCents, perKmCents, freeKm, perKgCents, freeKg, freeAboveCents, minCents, maxCents, maxKm, roadFactor }`. `freeKm`, `freeKg`, `maxKm`, `roadFactor` are JSON numbers with at most 2 decimals (`maxKm` 0.01–50, `roadFactor` 1.00–2.00). A shop uses its own rule, else the default. Preview: `{ shopId, distanceKm, weightKg, itemsCents }` (distance is the straight line) → `{ feeCents, rule: "SHOP" \| "DEFAULT" }`; past `maxKm` → `409 OUT_OF_RANGE`; no rule at all → `409 SHOP_NOT_READY`. Every save is audited (`fee_rule.set`). |
+| Slots | `GET /shops/{id}/slots?from=&to=`, `POST /shops/{id}/slots`, `PATCH /slots/{id}`, `POST /shops/{id}/slots/copy-week` | `from` / `to` are Colombo dates (`2026-11-02`), both inclusive; default the next 7 days, longest range 31 days → `{ "data": [ slot ] }` with `booked`. Create body: `{ "slots": [ { startsAt, endsAt, cutoffAt, capacity } ] }` (1–50, all or nothing): start in the future and within 90 days, length ≤ 24 h, `cutoffAt` ≤ `startsAt`, capacity 0–500; a start the shop already has → `409 CONFLICT`. `PATCH` body: any of `{ capacity, status: "OPEN" \| "CLOSED", cutoffAt }`; capacity may go below `booked` (the slot shows full, orders stay). Copy-week body: `{ "weekStart": "2026-11-02" }` copies the 7 days from that Colombo date to the next 7 days as empty, open slots, skips starts that already exist (safe to repeat) → `{ created, slots }`. Changes are audited (`slot.create`, `slot.update`, `slot.copy_week`). |
 | Catalog | `GET/POST /categories`, `PATCH /categories/{id}`, `GET/POST /products`, `PATCH /products/{id}`, `PUT /shops/{id}/category-markups` | |
 | Connector | `POST /shops/{id}/connector` | `{ "connectionString": "postgresql://…" }` → saved to SSM, returns connector (masked host) |
 | | `PUT /connectors/{id}/secret` | Replace connection string |

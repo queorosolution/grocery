@@ -14,7 +14,7 @@ const secretValue = "S3cr3t-Merchant-Value-9d41"
 
 func (f fixture) payhere(body string) *shop.Account {
 	f.a.T.Helper()
-	a := apptest.Decode[shop.Account](f.a.T, f.ok(http.MethodPost, "/admin/payment-accounts", body))
+	a := apptest.Decode[shop.Account](f.a.T, f.OK(http.MethodPost, "/admin/payment-accounts", body))
 	return &a
 }
 
@@ -22,7 +22,7 @@ const payhereBody = `{"ownerType":"PLATFORM","provider":"PAYHERE","mode":"SANDBO
 
 func TestCreatePayHereAccount(t *testing.T) {
 	f := newFixture(t)
-	w := f.call(http.MethodPost, "/admin/payment-accounts", payhereBody)
+	w := f.Call(http.MethodPost, "/admin/payment-accounts", payhereBody)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create = %d %s", w.Code, w.Body)
 	}
@@ -44,12 +44,12 @@ func TestMerchantSecretNeverLeaves(t *testing.T) {
 	acc := f.payhere(payhereBody)
 	rotated := "Rotated-Value-77aa-ZZ"
 	responses := []string{
-		f.ok(http.MethodGet, "/admin/payment-accounts", "").Body.String(),
-		f.ok(http.MethodPatch, "/admin/payment-accounts/"+acc.ID.String(), `{"merchantSecret":"`+rotated+`"}`).Body.String(),
-		f.ok(http.MethodGet, "/admin/payment-accounts", "").Body.String(),
-		f.ok(http.MethodGet, "/admin/audit", "").Body.String(),
-		f.ok(http.MethodGet, "/admin/audit?entity=payment_account", "").Body.String(),
-		f.ok(http.MethodGet, "/admin/shops", "").Body.String(),
+		f.OK(http.MethodGet, "/admin/payment-accounts", "").Body.String(),
+		f.OK(http.MethodPatch, "/admin/payment-accounts/"+acc.ID.String(), `{"merchantSecret":"`+rotated+`"}`).Body.String(),
+		f.OK(http.MethodGet, "/admin/payment-accounts", "").Body.String(),
+		f.OK(http.MethodGet, "/admin/audit", "").Body.String(),
+		f.OK(http.MethodGet, "/admin/audit?entity=payment_account", "").Body.String(),
+		f.OK(http.MethodGet, "/admin/shops", "").Body.String(),
 	}
 	for i, body := range responses {
 		for _, secret := range []string{secretValue, rotated} {
@@ -99,8 +99,8 @@ func TestPaymentAccountRules(t *testing.T) {
 	}
 	for name, c := range tests {
 		t.Run(name, func(t *testing.T) {
-			w := f.call(http.MethodPost, "/admin/payment-accounts", c.body)
-			if w.Code != http.StatusBadRequest || f.errorOf(w).Error.Fields[c.field] == "" {
+			w := f.Call(http.MethodPost, "/admin/payment-accounts", c.body)
+			if w.Code != http.StatusBadRequest || apptest.ErrorOf(f.a.T, w).Error.Fields[c.field] == "" {
 				t.Fatalf("got %d %s, want 400 with %q", w.Code, w.Body, c.field)
 			}
 			if strings.Contains(w.Body.String(), secretValue) {
@@ -108,7 +108,7 @@ func TestPaymentAccountRules(t *testing.T) {
 			}
 		})
 	}
-	if w := f.call(http.MethodPost, "/admin/payment-accounts", `{"ownerType":"PLATFORM","provider":"MANUAL","status":"ACTIVE"}`); w.Code != http.StatusBadRequest {
+	if w := f.Call(http.MethodPost, "/admin/payment-accounts", `{"ownerType":"PLATFORM","provider":"MANUAL","status":"ACTIVE"}`); w.Code != http.StatusBadRequest {
 		t.Errorf("status on create = %d, want 400", w.Code)
 	}
 	if n := f.a.Count(`SELECT count(*) FROM payment_accounts`); n != 0 {
@@ -121,12 +121,12 @@ func TestUpdatePaymentAccount(t *testing.T) {
 	acc := f.payhere(payhereBody)
 	path := "/admin/payment-accounts/" + acc.ID.String()
 
-	got := apptest.Decode[shop.Account](t, f.ok(http.MethodPatch, path, `{"mode":"LIVE","merchantId":"7770001","status":"DISABLED"}`))
+	got := apptest.Decode[shop.Account](t, f.OK(http.MethodPatch, path, `{"mode":"LIVE","merchantId":"7770001","status":"DISABLED"}`))
 	if got.Mode != "LIVE" || *got.MerchantID != "7770001" || got.Status != "DISABLED" || !got.HasSecret {
 		t.Fatalf("updated = %+v", got)
 	}
 	// Re-enabling works because the credentials are still there.
-	if got := apptest.Decode[shop.Account](t, f.ok(http.MethodPatch, path, `{"status":"ACTIVE"}`)); got.Status != "ACTIVE" {
+	if got := apptest.Decode[shop.Account](t, f.OK(http.MethodPatch, path, `{"status":"ACTIVE"}`)); got.Status != "ACTIVE" {
 		t.Fatalf("re-enable = %+v", got)
 	}
 	for name, body := range map[string]string{
@@ -137,16 +137,16 @@ func TestUpdatePaymentAccount(t *testing.T) {
 		"owner swap":    `{"ownerType":"SHOP"}`,
 		"shop move":     `{"shopId":"00000000-0000-0000-0000-000000000001"}`,
 	} {
-		if w := f.call(http.MethodPatch, path, body); w.Code != http.StatusBadRequest {
+		if w := f.Call(http.MethodPatch, path, body); w.Code != http.StatusBadRequest {
 			t.Errorf("%s = %d, want 400", name, w.Code)
 		}
 	}
 
 	manual := f.payhere(`{"ownerType":"PLATFORM","provider":"MANUAL"}`)
-	if w := f.call(http.MethodPatch, "/admin/payment-accounts/"+manual.ID.String(), `{"merchantSecret":"`+secretValue+`"}`); w.Code != http.StatusBadRequest {
+	if w := f.Call(http.MethodPatch, "/admin/payment-accounts/"+manual.ID.String(), `{"merchantSecret":"`+secretValue+`"}`); w.Code != http.StatusBadRequest {
 		t.Errorf("secret on a manual account = %d, want 400", w.Code)
 	}
-	if w := f.call(http.MethodPatch, "/admin/payment-accounts/"+manual.ID.String()[:35]+"0", `{"mode":"LIVE"}`); w.Code != http.StatusNotFound {
+	if w := f.Call(http.MethodPatch, "/admin/payment-accounts/"+manual.ID.String()[:35]+"0", `{"mode":"LIVE"}`); w.Code != http.StatusNotFound {
 		t.Errorf("unknown account = %d, want 404", w.Code)
 	}
 }
@@ -159,11 +159,11 @@ func TestDisablingAccountBreaksReadiness(t *testing.T) {
 	if err := f.a.Env.Owner.QueryRow(context.Background(), `SELECT payment_account_id::text FROM shop_settings WHERE shop_id = $1`, id).Scan(&accID); err != nil {
 		t.Fatal(err)
 	}
-	if r := apptest.Decode[shop.Readiness](t, f.ok(http.MethodGet, f.shopPath(id, "/readiness"), "")); !r.Ready {
+	if r := apptest.Decode[shop.Readiness](t, f.OK(http.MethodGet, f.shopPath(id, "/readiness"), "")); !r.Ready {
 		t.Fatalf("not ready to begin with: %+v", r)
 	}
-	f.ok(http.MethodPatch, "/admin/payment-accounts/"+accID, `{"status":"DISABLED"}`)
-	r := apptest.Decode[shop.Readiness](t, f.ok(http.MethodGet, f.shopPath(id, "/readiness"), ""))
+	f.OK(http.MethodPatch, "/admin/payment-accounts/"+accID, `{"status":"DISABLED"}`)
+	r := apptest.Decode[shop.Readiness](t, f.OK(http.MethodGet, f.shopPath(id, "/readiness"), ""))
 	if r.Ready || len(r.Missing) != 1 || r.Missing[0] != shop.MissingPayment {
 		t.Fatalf("readiness = %+v", r)
 	}
@@ -172,7 +172,7 @@ func TestDisablingAccountBreaksReadiness(t *testing.T) {
 func TestAuditFeed(t *testing.T) {
 	f := newFixture(t)
 	d := f.createShop(newShop)
-	f.ok(http.MethodPatch, f.shopPath(d.Shop.ID, ""), `{"name":"Renamed Shop"}`)
+	f.OK(http.MethodPatch, f.shopPath(d.Shop.ID, ""), `{"name":"Renamed Shop"}`)
 
 	type feed struct {
 		Data []struct {
@@ -182,7 +182,7 @@ func TestAuditFeed(t *testing.T) {
 		}
 		NextCursor string
 	}
-	got := apptest.Decode[feed](t, f.ok(http.MethodGet, "/admin/audit?entity=shop&entityId="+d.Shop.ID.String(), ""))
+	got := apptest.Decode[feed](t, f.OK(http.MethodGet, "/admin/audit?entity=shop&entityId="+d.Shop.ID.String(), ""))
 	if len(got.Data) != 2 || got.Data[0].Action != "shop.update" || got.Data[1].Action != "shop.create" {
 		t.Fatalf("feed = %+v", got)
 	}
@@ -190,7 +190,7 @@ func TestAuditFeed(t *testing.T) {
 		t.Fatalf("update row = %+v", got.Data[0])
 	}
 	for _, q := range []string{"?cursor=abc", "?cursor=-3", "?entity=" + strings.Repeat("x", 41)} {
-		if w := f.call(http.MethodGet, "/admin/audit"+q, ""); w.Code != http.StatusBadRequest {
+		if w := f.Call(http.MethodGet, "/admin/audit"+q, ""); w.Code != http.StatusBadRequest {
 			t.Errorf("GET /admin/audit%s = %d, want 400", q[:min(len(q), 12)], w.Code)
 		}
 	}

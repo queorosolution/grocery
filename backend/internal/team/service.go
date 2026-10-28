@@ -197,7 +197,7 @@ func (s *Service) Change(ctx context.Context, scope db.Scope, shopID, id uuid.UU
 			CanEditProducts bool      `json:"canEditProducts"`
 		}
 		if err := updateMember(ctx, tx, id, role, canEdit); err != nil {
-			if isUniqueViolation(err) {
+			if db.IsUniqueViolation(err) {
 				return apperr.New(apperr.Conflict)
 			}
 			return err

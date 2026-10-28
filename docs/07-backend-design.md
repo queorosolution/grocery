@@ -150,6 +150,10 @@ func Fee(rule Rule, distanceM int, weightG int, itemsCents money.Cents) (money.C
 
 `distanceM` = haversine(shop, address). `weightG` = Σ (`product.weight_g` or category default) × qty.
 
+**Rule storage and units.** `delivery.Rule` keeps `freeKm`, `freeKg`, `maxKm` and `roadFactor` as hundredths (`Dec2`), so the formula is integer maths only. A shop uses its own `delivery_fee_rules` row, else the platform default (`Service.RuleFor`); with neither it returns `SHOP_NOT_READY`.
+
+**Slots.** Other modules call `delivery.Book(ctx, tx, shopID, slotID, now)` and `delivery.Release(ctx, tx, slotID)` inside their own transaction. `Book` is one `UPDATE … WHERE booked < capacity AND status = 'OPEN' AND cutoff_at > now`; it returns `SLOT_FULL`, `SLOT_CLOSED` or `NOT_FOUND`. `Release` fails if nothing is booked (a double release is a bug).
+
 ## 8. Bill builder (pure, one function for every money calculation)
 
 ```go

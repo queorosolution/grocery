@@ -318,7 +318,7 @@ func (s *Service) record(ctx context.Context, tx *db.Tx, scope db.Scope, action 
 }
 
 func slugTaken(err error) error {
-	if isUniqueViolation(err) {
+	if db.IsUniqueViolation(err) {
 		return validate.New().Check("slug", false, "taken").Err()
 	}
 	return err
@@ -339,4 +339,14 @@ func sameText(a, b *string) bool {
 		return a == b
 	}
 	return *a == *b
+}
+
+// Exists lets other modules (delivery) check a shop id inside their own transaction.
+func (s *Service) Exists(ctx context.Context, tx *db.Tx, id uuid.UUID) (bool, error) {
+	return existsShop(ctx, tx, id)
+}
+
+// IDBySlug resolves the slug of an ACTIVE shop; suspended and draft shops are not found.
+func (s *Service) IDBySlug(ctx context.Context, tx *db.Tx, slug string) (uuid.UUID, bool, error) {
+	return activeIDBySlug(ctx, tx, slug)
 }

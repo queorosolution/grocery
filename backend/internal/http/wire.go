@@ -6,6 +6,7 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/delivery"
 	"gp/internal/shared/config"
 	"gp/internal/shared/db"
 	"gp/internal/shared/secrets"
@@ -22,12 +23,14 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		return Deps{}, nil, fmt.Errorf("wire: %w", err)
 	}
 	teamSvc := team.NewService(database)
+	shopSvc := shop.NewService(database, sec, cfg.FeatureManualPay)
 	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
 	return Deps{
 		Config:      cfg,
 		Auth:        auth.NewHandler(authSvc, cfg),
 		Team:        team.NewHandler(teamSvc),
-		Shop:        shop.NewHandler(shop.NewService(database, sec, cfg.FeatureManualPay)),
+		Shop:        shop.NewHandler(shopSvc),
+		Delivery:    delivery.NewHandler(delivery.NewService(database, shopSvc)),
 		Audit:       audit.NewHandler(database),
 		Memberships: teamSvc,
 	}, database.Close, nil

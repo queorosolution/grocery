@@ -18,17 +18,17 @@ import (
 func TestSettingsRules(t *testing.T) {
 	f := newFixture(t)
 	id := f.createShop(newShop).Shop.ID
-	put := func(mutate func(*shop.Settings)) (int, errorBody) {
+	put := func(mutate func(*shop.Settings)) (int, apptest.APIError) {
 		s := validSettings()
 		mutate(&s)
-		w := f.call(http.MethodPut, f.shopPath(id, "/settings"), jsonOf(t, s))
-		return w.Code, f.errorOf(w)
+		w := f.Call(http.MethodPut, f.shopPath(id, "/settings"), jsonOf(t, s))
+		return w.Code, apptest.ErrorOf(f.a.T, w)
 	}
 
 	if code, _ := put(func(s *shop.Settings) { s.MarkupBP = 500; s.MinOrderCents = 100000 }); code != http.StatusOK {
 		t.Fatalf("valid settings = %d", code)
 	}
-	d := apptest.Decode[shop.Detail](t, f.ok(http.MethodGet, f.shopPath(id, ""), ""))
+	d := apptest.Decode[shop.Detail](t, f.OK(http.MethodGet, f.shopPath(id, ""), ""))
 	if d.Settings.MarkupBP != 500 || d.Settings.MinOrderCents != 100000 || d.Settings.PaymentProvider != "MANUAL" {
 		t.Fatalf("saved = %+v", d.Settings)
 	}
@@ -60,7 +60,7 @@ func TestSettingsRules(t *testing.T) {
 		})
 	}
 	// The cart fields belong to the cart-tenant step, not to this request.
-	if w := f.call(http.MethodPut, f.shopPath(id, "/settings"), `{"cartTenantId":"ten_1"}`); w.Code != http.StatusBadRequest {
+	if w := f.Call(http.MethodPut, f.shopPath(id, "/settings"), `{"cartTenantId":"ten_1"}`); w.Code != http.StatusBadRequest {
 		t.Errorf("cartTenantId in settings = %d, want 400", w.Code)
 	}
 }
@@ -69,27 +69,27 @@ func TestSettingsPaymentAccountMustBelong(t *testing.T) {
 	f := newFixture(t)
 	a := f.createShop(newShop).Shop.ID
 	b := f.createShop(`{"slug":"shop-b","name":"Shop B","lat":6.9,"lng":79.9}`).Shop.ID
-	mine := apptest.Decode[shop.Account](t, f.ok(http.MethodPost, "/admin/payment-accounts",
+	mine := apptest.Decode[shop.Account](t, f.OK(http.MethodPost, "/admin/payment-accounts",
 		`{"ownerType":"SHOP","shopId":"`+a.String()+`","provider":"MANUAL"}`))
 
 	settings := validSettings()
 	settings.PaymentAccountID = &mine.ID
-	if w := f.call(http.MethodPut, f.shopPath(a, "/settings"), jsonOf(t, settings)); w.Code != http.StatusOK {
+	if w := f.Call(http.MethodPut, f.shopPath(a, "/settings"), jsonOf(t, settings)); w.Code != http.StatusOK {
 		t.Fatalf("own account = %d %s", w.Code, w.Body)
 	}
-	w := f.call(http.MethodPut, f.shopPath(b, "/settings"), jsonOf(t, settings))
-	if w.Code != http.StatusBadRequest || f.errorOf(w).Error.Fields["paymentAccountId"] != "unknown" {
+	w := f.Call(http.MethodPut, f.shopPath(b, "/settings"), jsonOf(t, settings))
+	if w.Code != http.StatusBadRequest || apptest.ErrorOf(f.a.T, w).Error.Fields["paymentAccountId"] != "unknown" {
 		t.Fatalf("another shop's account = %d %s", w.Code, w.Body)
 	}
 	settings.PaymentProvider = "PAYHERE"
-	w = f.call(http.MethodPut, f.shopPath(a, "/settings"), jsonOf(t, settings))
-	if w.Code != http.StatusBadRequest || f.errorOf(w).Error.Fields["paymentProvider"] != "provider_mismatch" {
+	w = f.Call(http.MethodPut, f.shopPath(a, "/settings"), jsonOf(t, settings))
+	if w.Code != http.StatusBadRequest || apptest.ErrorOf(f.a.T, w).Error.Fields["paymentProvider"] != "provider_mismatch" {
 		t.Fatalf("provider mismatch = %d %s", w.Code, w.Body)
 	}
 	missing := validSettings()
 	id := randomID()
 	missing.PaymentAccountID = &id
-	if w := f.call(http.MethodPut, f.shopPath(a, "/settings"), jsonOf(t, missing)); w.Code != http.StatusBadRequest {
+	if w := f.Call(http.MethodPut, f.shopPath(a, "/settings"), jsonOf(t, missing)); w.Code != http.StatusBadRequest {
 		t.Fatalf("unknown account = %d", w.Code)
 	}
 }
@@ -98,10 +98,10 @@ func TestSetHours(t *testing.T) {
 	f := newFixture(t)
 	id := f.createShop(newShop).Shop.ID
 	put := func(body string) *http.Response {
-		return f.call(http.MethodPut, f.shopPath(id, "/hours"), body).Result()
+		return f.Call(http.MethodPut, f.shopPath(id, "/hours"), body).Result()
 	}
 
-	d := apptest.Decode[shop.Detail](t, f.ok(http.MethodPut, f.shopPath(id, "/hours"),
+	d := apptest.Decode[shop.Detail](t, f.OK(http.MethodPut, f.shopPath(id, "/hours"),
 		`{"days":[{"weekday":1,"opens":"08:00","closes":"21:00"},{"weekday":7,"opens":"09:30","closes":"24:00"}]}`))
 	if len(d.Hours) != 2 || d.Hours[0].Weekday != 1 || d.Hours[1].Closes != "24:00" || d.Hours[1].Opens != "09:30" {
 		t.Fatalf("hours = %+v", d.Hours)
@@ -124,12 +124,12 @@ func TestSetHours(t *testing.T) {
 		}
 	}
 	// A failed request leaves the saved week alone.
-	d = apptest.Decode[shop.Detail](t, f.ok(http.MethodGet, f.shopPath(id, ""), ""))
+	d = apptest.Decode[shop.Detail](t, f.OK(http.MethodGet, f.shopPath(id, ""), ""))
 	if len(d.Hours) != 2 {
 		t.Fatalf("a refused request changed the hours: %+v", d.Hours)
 	}
 	// An empty list closes every day.
-	d = apptest.Decode[shop.Detail](t, f.ok(http.MethodPut, f.shopPath(id, "/hours"), `{"days":[]}`))
+	d = apptest.Decode[shop.Detail](t, f.OK(http.MethodPut, f.shopPath(id, "/hours"), `{"days":[]}`))
 	if len(d.Hours) != 0 {
 		t.Fatalf("hours = %+v", d.Hours)
 	}
@@ -139,14 +139,14 @@ func TestReadinessAndAccepting(t *testing.T) {
 	f := newFixture(t)
 	id := f.createShop(newShop).Shop.ID
 
-	r := apptest.Decode[shop.Readiness](t, f.ok(http.MethodGet, f.shopPath(id, "/readiness"), ""))
+	r := apptest.Decode[shop.Readiness](t, f.OK(http.MethodGet, f.shopPath(id, "/readiness"), ""))
 	want := []shop.Missing{shop.MissingStatus, shop.MissingHours, shop.MissingPayment, shop.MissingSlot}
 	if r.Ready || len(r.Missing) != len(want) {
 		t.Fatalf("readiness = %+v, want missing %v", r, want)
 	}
 
-	w := f.call(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":true}`)
-	e := f.errorOf(w)
+	w := f.Call(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":true}`)
+	e := apptest.ErrorOf(f.a.T, w)
 	if w.Code != http.StatusConflict || e.Error.Code != "SHOP_NOT_READY" || len(e.Error.Fields) != 4 || e.Error.Fields["PAYMENT_ACCOUNT"] != "missing" {
 		t.Fatalf("accepting when not ready = %d %s", w.Code, w.Body)
 	}
@@ -155,13 +155,13 @@ func TestReadinessAndAccepting(t *testing.T) {
 	}
 
 	ready := f.makeReady("ready-shop")
-	d := apptest.Decode[shop.Detail](t, f.ok(http.MethodPost, f.shopPath(ready, "/accepting"), `{"on":true}`))
+	d := apptest.Decode[shop.Detail](t, f.OK(http.MethodPost, f.shopPath(ready, "/accepting"), `{"on":true}`))
 	if !d.Shop.AcceptingOrders || !d.Readiness.Ready {
 		t.Fatalf("detail = %+v", d)
 	}
 	// Off always works, even when something is missing now.
 	f.a.Exec(`DELETE FROM slots WHERE shop_id = $1`, ready)
-	d = apptest.Decode[shop.Detail](t, f.ok(http.MethodPost, f.shopPath(ready, "/accepting"), `{"on":false}`))
+	d = apptest.Decode[shop.Detail](t, f.OK(http.MethodPost, f.shopPath(ready, "/accepting"), `{"on":false}`))
 	if d.Shop.AcceptingOrders || d.Readiness.Ready {
 		t.Fatalf("detail after off = %+v", d)
 	}
@@ -172,14 +172,14 @@ func TestReadinessAndAccepting(t *testing.T) {
 	// Slots that are full or past their cutoff do not count; courier shops need none.
 	f.a.Exec(`INSERT INTO slots (shop_id, starts_at, ends_at, cutoff_at, capacity, booked) VALUES ($1, now() + interval '1 day', now() + interval '2 day', now() + interval '20 hours', 5, 5)`, ready)
 	f.a.Exec(`INSERT INTO slots (shop_id, starts_at, ends_at, cutoff_at, capacity) VALUES ($1, now() + interval '3 day', now() + interval '4 day', now() - interval '1 hour', 5)`, ready)
-	if r := apptest.Decode[shop.Readiness](t, f.ok(http.MethodGet, f.shopPath(ready, "/readiness"), "")); r.Ready {
+	if r := apptest.Decode[shop.Readiness](t, f.OK(http.MethodGet, f.shopPath(ready, "/readiness"), "")); r.Ready {
 		t.Fatal("full and closed slots must not make a shop ready")
 	}
 	s := validSettings()
 	s.DeliveryType = "COURIER"
 	s.PaymentAccountID = settingsAccount(t, f, ready)
-	f.ok(http.MethodPut, f.shopPath(ready, "/settings"), jsonOf(t, s))
-	if r := apptest.Decode[shop.Readiness](t, f.ok(http.MethodGet, f.shopPath(ready, "/readiness"), "")); !r.Ready {
+	f.OK(http.MethodPut, f.shopPath(ready, "/settings"), jsonOf(t, s))
+	if r := apptest.Decode[shop.Readiness](t, f.OK(http.MethodGet, f.shopPath(ready, "/readiness"), "")); !r.Ready {
 		t.Fatalf("a courier shop needs no slot: %+v", r)
 	}
 }
@@ -197,7 +197,7 @@ func settingsAccount(t *testing.T, f fixture, id interface{ String() string }) *
 func TestCanTakeOrders(t *testing.T) {
 	f := newFixture(t)
 	id := f.makeReady("krishna-super")
-	f.ok(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":true}`)
+	f.OK(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":true}`)
 	svc := shop.NewService(f.a.Env.DB, f.a.Secrets, true)
 	check := func(shopID uuid.UUID, at time.Time) error {
 		return f.a.Env.DB.Tx(context.Background(), db.System(), func(ctx context.Context, tx *db.Tx) error {
@@ -210,7 +210,7 @@ func TestCanTakeOrders(t *testing.T) {
 		t.Fatalf("open all week and ready: %v", err)
 	}
 	// Close Wednesdays: an instant on a Wednesday in Colombo is refused with SHOP_CLOSED.
-	f.ok(http.MethodPut, f.shopPath(id, "/hours"), `{"days":[{"weekday":1,"opens":"08:00","closes":"21:00"}]}`)
+	f.OK(http.MethodPut, f.shopPath(id, "/hours"), `{"days":[{"weekday":1,"opens":"08:00","closes":"21:00"}]}`)
 	monday := time.Date(2026, 3, 2, 12, 0, 0, 0, time.FixedZone("Colombo", 5*3600+1800))
 	if err := check(id, monday); err != nil {
 		t.Errorf("Monday noon: %v", err)
@@ -224,12 +224,12 @@ func TestCanTakeOrders(t *testing.T) {
 		}
 	}
 	// Switched off.
-	f.ok(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":false}`)
+	f.OK(http.MethodPost, f.shopPath(id, "/accepting"), `{"on":false}`)
 	if err := check(id, monday); !apperr.Is(err, apperr.ShopClosed) {
 		t.Errorf("switched off: %v, want SHOP_CLOSED", err)
 	}
 	// Setup broken: not ready beats closed.
-	f.ok(http.MethodPatch, f.shopPath(id, ""), `{"status":"SUSPENDED"}`)
+	f.OK(http.MethodPatch, f.shopPath(id, ""), `{"status":"SUSPENDED"}`)
 	if err := check(id, monday); !apperr.Is(err, apperr.ShopNotReady) {
 		t.Errorf("suspended: %v, want SHOP_NOT_READY", err)
 	}
