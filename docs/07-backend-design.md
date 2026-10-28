@@ -97,7 +97,7 @@ type Scope struct {
 | `user` | users (profile), addresses, otp_codes | `UpdateMe`, `SendPhoneOTP`, `VerifyPhone`, `Addresses*`, `DeleteMe` |
 | `team` | memberships, invites | `Invite`, `ChangeRole`, `Remove`, `ListTeam` |
 | `shop` | shops, shop_settings, shop_hours, payment_accounts | `Create`, `UpdateSettings`, `SetHours`, `SetAccepting`, `Readiness`, `CanTakeOrders` |
-| `catalog` | categories, products, shop_products (reads), customer_products | `Home`, `Search`, `ShopPage`, `Products`, `BuyAgain` |
+| `catalog` | categories, products, shop_products (reads), customer_products | `Home`, `Search`, `ShopPage`, `PublicProducts`, `CategoryTree`, `BuyAgain` (public); admin and console: `CreateProduct`, `UpdateShopProduct`, … |
 | `pricing` | shop_products (price columns), price_changes, category_markups | `SetShopPrice`, `Reprice(shopID)`, `OnlinePrice` (pure) |
 | `delivery` | slots, delivery_fee_rules | `Slots`, `Book`, `Release`, `Fee` (pure), `CopyWeek` |
 | `billing` | — (pure) | `Build(BillInput) (Bill, error)` |
@@ -116,6 +116,8 @@ type Scope struct {
 | `audit` | audit_log | `Write`, `List` |
 
 **Cross-module rule:** a module calls another module's **service**, never its repo. Exception: pure packages can be called by anyone.
+
+The public catalog pages are built by `catalog` from three service calls inside one `db.Public()` transaction: `shop.Cards` / `shop.PageBySlug` (profile and open-now), `delivery.DeliveringShops` / `delivery.NextSlots` (reach and next slot), and its own product queries. A page is a few statements in one transaction; nothing is cached in the Lambda, because Cloudflare caches the answer (`Cache-Control: public`, see docs/06 section 3).
 
 ## 5. Generated code (`make gen`)
 

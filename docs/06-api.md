@@ -72,7 +72,10 @@ One call per app load.
 - `me` is `null` when signed out. `adminTotp`: `NOT_REQUIRED` | `SETUP_NEEDED` | `CODE_NEEDED` | `OK`.
 
 ### `GET /home?lat=&lng=` — public, cacheable
-`lat`/`lng` rounded by the client to 2 decimals (keeps the cache useful and hides the exact location).
+- `lat` and `lng` are optional but come together, inside Sri Lanka (else `400`, `fields.lat` / `fields.lng` = `required`, `invalid` or `out_of_range`). The **server rounds them to 2 decimals** before measuring anything (about 1 km): the exact place is never used, and one cached answer (`max-age=60`) serves a whole neighbourhood.
+- `shops`: with a pin, the active shops that deliver there (the rule of `deliveringShops` in §5), nearest first, each with `distanceKm` (straight line, 2 decimals). Without a pin, every active shop by name and `distanceKm: null`. `openNow` follows the weekly hours in Colombo time. `nextSlot` is the start of the soonest slot that can still be booked; it is left out when there is none.
+- `deals`: up to 12 available products of those shops sold under their MRP, biggest `saveCents` first.
+- `promos`: always `[]` for now (there is no promo data yet).
 
 ```json
 {
@@ -82,9 +85,11 @@ One call per app load.
 }
 ```
 
-### `GET /search?q=&shop=&cursor=` — public, cacheable
-- `q` 2–60 characters. `shop` optional slug.
-- Without `shop`: products across shops that deliver near `lat,lng` (optional params), cheapest first, plus matching shops.
+### `GET /search?q=&shop=&cursor=&lat=&lng=` — public, cacheable (30 s)
+- `q` 2–60 characters after trimming (else `400`, `fields.q`). The text is only ever a query parameter, so odd text (`%' OR 1=1 --`) is just an empty result. It matches name, brand and keywords, and tolerates typos (`basmti` finds Basmati): `$q <% search_doc` with `pg_trgm.word_similarity_threshold = 0.4` set for the transaction.
+- `shop` is an optional slug of an active shop (unknown or not active → `404`). Then only that shop is searched and `shops` is empty.
+- Without `shop`: products across the shops that deliver to `lat,lng` (optional, same rules as `/home`, not rounded), or across every active shop without a pin. `shops` lists those shops whose name contains the text.
+- Order: available products first, then cheapest first. 24 per page; `nextCursor` is `null` on the last page. Hidden products and products of shops that are not active are never listed. Each product carries `shopSlug`.
 
 ```json
 { "shops": [ … ], "products": { "data": [ { "shopProductId": "…", "shopSlug": "…", "name": "…", "onlinePriceCents": 0, "available": true } ], "nextCursor": null } }
@@ -93,7 +98,8 @@ One call per app load.
 ### `GET /shops?fields=slug` — public, cacheable
 Active shops: `{ "data": [ { "slug": "krishna-super", "name": "Krishna Super", "logoUrl": "…", "updatedAt": "…" } ] }`. Used by the web build to pre-render shop pages.
 
-### `GET /shops/{slug}` — public, cacheable
+### `GET /shops/{slug}` — public, cacheable (60 s)
+Only an `ACTIVE` shop; draft, suspended and unknown shops are all `404`.
 
 ```json
 {
@@ -101,11 +107,15 @@ Active shops: `{ "data": [ { "slug": "krishna-super", "name": "Krishna Super", "
   "openNow": true, "acceptingOrders": true, "hoursToday": { "opens": "08:00", "closes": "21:00" },
   "deliveryType": "SLOT", "minOrderCents": 100000,
   "cart": { "tenantId": "ten_…", "publicKey": "pk_live_…" },
-  "categories": [ { "id": "…", "slug": "rice", "name": "Rice", "count": 42 } ]
+  "categories": [ { "id": "…", "parentId": null, "slug": "rice", "name": "Rice", "count": 42 } ]
 }
 ```
 
-### `GET /shops/{slug}/products?category=&q=&cursor=&limit=` — public, cacheable
+- `acceptingOrders` is the shop's switch. `hoursToday` is `null` on a day the shop is closed. `cart` is `null` until the shop has a cart tenant. Nothing else from the shop's settings is shown.
+- `categories`: those the shop has products in, ordered by `sort` then name. `count` is the shop's visible products in the category; a top-level category also counts its children.
+
+### `GET /shops/{slug}/products?category=&q=&cursor=&limit=` — public, cacheable (60 s)
+`category` is a category slug (its children are included; an unknown slug gives an empty list). `q` is optional, 2–60 characters, with the same typo search as `/search`. `limit` is 1–50, default 24. Ordered by product name. Hidden products are left out; products that cannot be bought now are listed with `available: false`. `nextCursor` is `null` on the last page.
 
 ```json
 { "data": [ { "shopProductId": "…", "productId": "…", "name": "Samba Rice", "brand": "Araliya", "sizeLabel": "5kg", "unit": "PCS",
@@ -118,8 +128,8 @@ Open slots for the next `days` (1–7, default 3; today counts as day 1, Colombo
 - Not cached (the numbers change with every order). Unknown or not-active shop → `404`.
 - `{ "data": [ { "id": "…", "startsAt": "…", "endsAt": "…", "cutoffAt": "…", "remaining": 3 } ] }`
 
-### `GET /categories` — public, cacheable
-Category tree.
+### `GET /categories` — public, cacheable (5 min)
+Category tree: `{ "data": [ { "id": "…", "slug": "rice", "name": "Rice", "children": [ { "id": "…", "slug": "basmati", "name": "Basmati", "children": [] } ] } ] }`, ordered by `sort` then name.
 
 ---
 
@@ -165,7 +175,7 @@ Address rules: `label` 1–30, `line1` 3–160, `landmark` ≤ 120 characters; t
 
 `deliveringShops` lists the active shops whose delivery distance covers the pin (straight line × road factor ≤ `maxKm` of the shop's fee rule, else the platform default), nearest first. `distanceKm` is the straight line with two decimals. A shop with no fee rule at all is not listed.
 | `DELETE` | `/me` | user | `{ "confirm": "DELETE" }` | `204`, account anonymised (not built yet: it needs orders, so it comes with the order prompts) |
-| `GET` | `/shops/{slug}/buy-again` | user | — | `{ "data": [ product + available + current price ] }` |
+| `GET` | `/shops/{slug}/buy-again` | user | — | `{ "data": [ product card ] }`: what the caller bought in this shop before, latest purchase first, at most 20, with today's `onlinePriceCents` and `available` (same card as the shop product list). Never cached. Unknown or not-active shop → `404`. |
 
 ---
 

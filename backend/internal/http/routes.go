@@ -98,6 +98,12 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPost, "/admin/shops/{id}/products", Admin, d.Catalog.AddShopProduct},
 			Route{nethttp.MethodGet, products, Perm(enum.PermissionOrderReview), d.Catalog.ShopProducts},
 			Route{nethttp.MethodPatch, products + "/{id}", Perm(enum.PermissionProductEdit), d.Catalog.UpdateShopProduct},
+			Route{nethttp.MethodGet, "/home", Public, d.Catalog.Home},
+			Route{nethttp.MethodGet, "/search", Public, d.Catalog.Search},
+			Route{nethttp.MethodGet, "/categories", Public, d.Catalog.CategoryTree},
+			Route{nethttp.MethodGet, "/shops/{slug}", Public, d.Catalog.ShopPage},
+			Route{nethttp.MethodGet, "/shops/{slug}/products", Public, d.Catalog.PublicProducts},
+			Route{nethttp.MethodGet, "/shops/{slug}/buy-again", User, d.Catalog.BuyAgain},
 		)
 	}
 	if d.Pricing != nil {
