@@ -150,8 +150,8 @@ erDiagram
 | `slots` | Delivery windows | admin | `booked` changes only through the booking query. |
 | `categories`, `products` | Master catalog | admin, sync | `search_doc` generated for search. |
 | `category_markups` | Optional markup per category per shop | admin | Overrides shop markup. |
-| `shop_products` | A product in a shop with prices | admin, shop, sync | `online_price_cents` always set by the pricing engine. |
-| `price_changes` | Price history | pricing | Append-only. |
+| `shop_products` | A product in a shop with prices | admin, shop, sync | `online_price_cents` always set by the pricing engine, never taken from a request. Fields the connector owns (`managed_by = CONNECTOR`) are read-only for people. Stock is a whole number in phase 1. |
+| `price_changes` | Price history | pricing | Append-only. The first row of a product has no old prices. `source` is `MANUAL`, `CONNECTOR` or `MARKUP` (a markup change). `changed_by` is empty for system jobs. |
 | `connectors`, `connector_runs`, `sync_issues` | Shop database sync | admin, sync | Admin-only (RLS). |
 | `coupons`, `coupon_redemptions` | Coupons and their use | admin, order | `used_count` changes only through the reserve / release queries. |
 | `orders` | One bill / order | order | `version` for optimistic locking. Address is a snapshot. |

@@ -149,3 +149,14 @@ func NormalizePhone(s string) (string, bool) {
 // IsMobile reports whether a normalised +94 number is a mobile number (07x).
 // Codes by SMS only make sense for mobiles, and a landline would only cost money.
 func IsMobile(e164 string) bool { return strings.HasPrefix(e164, "+947") }
+
+// HTTPSURLUnder is HTTPSURL that also requires the URL to live under base (an
+// https origin such as https://img.example.test): only our own image host is
+// ever stored, so a page can never be pointed at someone else's file.
+func (v *Validator) HTTPSURLUnder(field, s, base string, max int) *Validator {
+	v.HTTPSURL(field, s, max)
+	if base == "" || !strings.HasPrefix(s, strings.TrimRight(base, "/")+"/") || strings.Contains(s, "..") {
+		return v.fail(field, "invalid")
+	}
+	return v
+}

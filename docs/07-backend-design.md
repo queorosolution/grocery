@@ -31,10 +31,14 @@ flowchart LR
 | Run work after commit | `tx.AfterCommit(fn)` | `internal/shared/db` |
 | Return an error | `apperr.New(apperr.SlotFull)`, `apperr.Validation(fields)` | `internal/shared/apperr` |
 | Admin or "me" route steps (scope, `{id}`, body, JSON out, `204` on nil) | `routex.Admin(w, r, 200, withID, &in, run)`, `routex.User(…)` | `internal/shared/routex` |
-| Database error checks | `db.IgnoreNoRows(err)`, `db.IsUniqueViolation(err)`, `db.IsCheckViolation(err)` | `internal/shared/db` |
+| Console route steps (scope with the shop from the `perm:` guard) | `routex.Console(w, r, 200, withID, &in, run)`; the shop is `scope.ShopID`, never from the body | `internal/shared/routex` |
+| Database error checks | `db.IgnoreNoRows(err)`, `db.IsUniqueViolation(err)`, `db.IsForeignKeyViolation(err)`, `db.IsCheckViolation(err)` | `internal/shared/db` |
+| `NOT_FOUND` for a missing row | `apperr.NotFoundUnless(err, found)` | `internal/shared/apperr` |
+| PATCH field that can be omitted or `null` | `optional.Field[T]` (`Set`, `Null`, `Ptr()`) | `internal/shared/optional` |
 | Decode JSON body | `httpx.Decode(r, &in)` (64 KB, unknown fields rejected) | `internal/shared/httpx` |
 | Write JSON / error | `httpx.JSON(w, 200, v)`, `httpx.Error(w, r, err)` | `internal/shared/httpx` |
 | Validate fields | `validate.New().Str("name", v, 1, 80).Phone(...).Err()` | `internal/shared/validate` |
+| Image URL under our own image host | `validate.New().HTTPSURLUnder("imageUrl", v, cfg.ImgBaseURL, 300)` | `internal/shared/validate` |
 | Who is calling | `authn.Actor(ctx)` | `internal/shared/authn` |
 | Check permission + scope | `authz.Require(ctx, authz.OrderReview, shopID)` | `internal/shared/authz` |
 | Money math | `money.Cents`, `money.RoundRupee`, `money.ApplyBP`, `money.MulQty` | `internal/shared/money` |
@@ -49,6 +53,7 @@ flowchart LR
 | Caller address | `httpx.ClientIP(r)`: for throttling and hashing only, never for access decisions | `internal/shared/httpx` |
 | Publish after commit (start-up) | `events.SetPublisher(events.NewPublisher(db, queue, scheduler))` | `internal/events` |
 | Emit an event | `events.Add(ctx, tx, events.Event{Type: …, ShopID: …, EntityID: …, Payload: …})` (same tx as the change) | `internal/events` |
+| Announce changed shop products | `events.AddCatalogChanged(ctx, tx, shopID, ids)` (ids only, 200 per event) | `internal/events` |
 | Create a timer | `events.Add(ctx, tx, events.Event{Type: events.TimerSchedule, …})` (same outbox path) | `internal/events` |
 | Write audit row | `audit.Write(ctx, tx, scope, audit.Entry{Action: "shop.settings", Entity: "shop", EntityID: id, ShopID: shopID, Before: b, After: a})` (before / after pass through `logx.RedactSecrets`) | `internal/audit` |
 | Log | `logx.From(ctx).Info("…", "orderId", id)` (redacts phones, tokens) | `internal/shared/logx` |
@@ -106,7 +111,7 @@ type Scope struct {
 | `connector` | connectors, connector_runs, sync_issues | `Save`, `Test`, `Tables`, `Columns`, `SetMapping`, `Preview`, `Run`, `ResolveIssue` |
 | `cartclient` | — | `GetCart`, `DeleteCart`, `UpsertItems`, `CreateTenant` |
 | `events` | outbox, processed_events | `Add`, `PublishAfterCommit`, `Sweep`, `Dispatch` |
-| `upload` | — | `Presign` |
+| `upload` | — | `Presign` (R2 link signed to content type and length; who may upload is checked in its handler) |
 | `site` | — | `OnRebuild` (worker consumer: coalesce, then call the Pages deploy hook) |
 | `audit` | audit_log | `Write`, `List` |
 
@@ -139,7 +144,15 @@ Markup used = `category_markups` for the product's category, else `shop_settings
 
 **Example:** shop price Rs 1,400.00, MRP Rs 1,500.00, markup 250 bp → raw 143,500 → Rs 1,435.00 (under MRP) → margin Rs 35.00.
 
-`pricing.SetShopPrice` and `pricing.Reprice` always: update `online_price_cents` in the same transaction, write `price_changes`, add `catalog.changed` event.
+`pricing.SetShopPrice`, `pricing.AddShopProduct` and `pricing.Reprice` always: update `online_price_cents` in the same transaction, write `price_changes`, add `catalog.changed` event.
+
+| Function | Used by | Notes |
+|---|---|---|
+| `SetShopPrice(ctx, tx, scope, shopID, shopProductID, price, mrp, source)` | console edit, connector sync | `mrp` is stored as given (`nil` clears it). A shop product of another shop is `NOT_FOUND`. No `price_changes` row when nothing changed. |
+| `AddShopProduct(ctx, tx, scope, NewShopProduct)` | admin link, connector create | Inserts the row with its first price. History row has no old price. A second link of the same product is a unique-violation error for the caller to name. |
+| `Reprice(ctx, tx, scope, shopID)` | shop settings (when `markup_bp` changes), category markups | All products of the shop, `source = MARKUP`. A product with no valid customer price keeps its old price and is logged. |
+
+The `ErrMRPBelowShopPrice` rule has one edge worth knowing: with a 0 % markup, a shop price that is not a whole rupee and rounds *down* (for example Rs 100.40) has no valid customer price. The API answers `400` with `fields.shopPriceCents = "invalid_price"` (or `mrpCents` when the MRP is the cause).
 
 ## 7. Delivery fee (pure)
 

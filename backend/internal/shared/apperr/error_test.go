@@ -44,3 +44,17 @@ func TestWrapDoesNotChangeTheOriginal(t *testing.T) {
 		t.Fatal("Wrap changed the shared error")
 	}
 }
+
+func TestNotFoundUnless(t *testing.T) {
+	boom := errors.New("boom")
+	if err := NotFoundUnless(boom, false); !errors.Is(err, boom) {
+		t.Errorf("database error lost: %v", err)
+	}
+	var e *Error
+	if err := NotFoundUnless(nil, false); !errors.As(err, &e) || e.Code != NotFound {
+		t.Errorf("missing row = %v", err)
+	}
+	if err := NotFoundUnless(nil, true); err != nil {
+		t.Errorf("found row = %v", err)
+	}
+}

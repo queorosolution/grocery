@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	codeUnique = "23505"
-	codeCheck  = "23514"
+	codeUnique     = "23505"
+	codeForeignKey = "23503"
+	codeCheck      = "23514"
 )
 
 // IgnoreNoRows turns "no row" into nil, for lookups that report found separately.
@@ -22,6 +23,9 @@ func IgnoreNoRows(err error) error {
 
 // IsUniqueViolation reports a unique index or constraint clash.
 func IsUniqueViolation(err error) bool { return hasCode(err, codeUnique) }
+
+// IsForeignKeyViolation reports a reference to a row that does not exist.
+func IsForeignKeyViolation(err error) bool { return hasCode(err, codeForeignKey) }
 
 // IsCheckViolation reports a failed CHECK constraint.
 func IsCheckViolation(err error) bool { return hasCode(err, codeCheck) }

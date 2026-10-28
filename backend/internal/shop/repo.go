@@ -247,3 +247,11 @@ func activeLocations(ctx context.Context, tx *db.Tx) ([]Location, error) {
 	}
 	return out, rows.Err()
 }
+
+func markupOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (bp int, found bool, err error) {
+	err = tx.QueryRow(ctx, `SELECT markup_bp FROM shop_settings WHERE shop_id = $1`, id).Scan(&bp)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, false, nil
+	}
+	return bp, err == nil, err
+}

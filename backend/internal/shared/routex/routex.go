@@ -23,6 +23,16 @@ func AdminScope(r *http.Request) (db.Scope, error) {
 	return s, nil
 }
 
+// ShopScope returns the scope a perm: guard stored for a console shop route. It
+// always names the shop; a scope without one fails closed.
+func ShopScope(r *http.Request) (db.Scope, error) {
+	s, ok := authz.ScopeFrom(r.Context())
+	if !ok || s.ShopID == uuid.Nil {
+		return db.Scope{}, apperr.New(apperr.Forbidden)
+	}
+	return s, nil
+}
+
 // UserScope returns the scope of a signed-in user's own request. The user comes
 // from the guard, never from the request.
 func UserScope(r *http.Request) (db.Scope, error) { return authz.UserScope(r.Context()) }
@@ -44,6 +54,12 @@ type Run func(r *http.Request, scope db.Scope, id uuid.UUID) (any, error)
 // status; a nil result is 204.
 func Admin[B any](w http.ResponseWriter, r *http.Request, status int, withID bool, body *B, run Run) {
 	serve(w, r, status, AdminScope, withID, body, run)
+}
+
+// Console is Admin for the routes of one shop's console, behind a perm: guard.
+// The shop is scope.ShopID: it comes from the guard, never from the body.
+func Console[B any](w http.ResponseWriter, r *http.Request, status int, withID bool, body *B, run Run) {
+	serve(w, r, status, ShopScope, withID, body, run)
 }
 
 // User is Admin for the routes of a signed-in user's own data.
