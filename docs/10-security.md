@@ -67,7 +67,8 @@ Every arrow into "Trusted" is checked: identity (cookie / signature), permission
 | Access token | JWT HS256 (alg pinned), 15 min, claims: `sub`, `sid`, `totp`, `iat`, `exp`, `iss`, `aud`. Key from SSM (`/…/jwt/key`, 32+ random bytes). |
 | Refresh token | 32 random bytes, stored as SHA-256 hash, 30 days, rotated each use. Reuse → revoke the family. |
 | Cookies | `gp_at`: `HttpOnly; Secure; SameSite=Lax; Path=/`. `gp_rt`: same + `Path=/v1/auth`. Host-only on `api.<domain>`. |
-| Admin | Email in `SUPER_ADMIN_EMAILS` **and** `SUPER_ADMIN` membership **and** TOTP for the session. TOTP step reuse blocked (`last_used_step`). |
+| Admin | Email in `SUPER_ADMIN_EMAILS` **and** `SUPER_ADMIN` membership **and** TOTP for the session. TOTP step reuse blocked (`last_used_step`); 5 tries per 15 minutes; the secret is AES-256-GCM encrypted with the user id as context. |
+| Roles | Never in the token. `perm:` and `admin` routes read active memberships from the database on each request, so removing a role or blocking a user acts immediately. |
 | Invites | 32-byte token, hashed, 7 days, single use, Google email must match. |
 | Blocking | `users.status = BLOCKED` → all sessions revoked, sign-in refused. |
 

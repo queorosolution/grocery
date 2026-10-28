@@ -21,7 +21,7 @@ type userRow struct {
 	Name          string
 	Phone         *string
 	PhoneVerified bool
-	Status        string
+	Status        enum.UserStatus
 }
 
 const userColumns = `id, email, name, phone, phone_verified_at IS NOT NULL, status`
@@ -121,41 +121,11 @@ func revokeAllSessions(ctx context.Context, tx *db.Tx, userID uuid.UUID) error {
 	return err
 }
 
-func rolesOf(ctx context.Context, tx *db.Tx, userID uuid.UUID) ([]RoleInfo, error) {
-	rows, err := tx.Query(ctx, `
-		SELECT m.role, m.shop_id, s.slug, s.name
-		FROM memberships m LEFT JOIN shops s ON s.id = m.shop_id
-		WHERE m.user_id = $1 AND m.status = 'ACTIVE'
-		ORDER BY m.created_at, m.id`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	roles := []RoleInfo{}
-	for rows.Next() {
-		var r RoleInfo
-		if err := rows.Scan(&r.Role, &r.ShopID, &r.ShopSlug, &r.ShopName); err != nil {
-			return nil, err
-		}
-		roles = append(roles, r)
-	}
-	return roles, rows.Err()
-}
-
 // totpEnabled reports whether the user finished authenticator setup.
 func totpEnabled(ctx context.Context, tx *db.Tx, userID uuid.UUID) (bool, error) {
 	var enabled bool
 	err := tx.QueryRow(ctx, `SELECT enabled_at IS NOT NULL FROM admin_totp WHERE user_id = $1`, userID).Scan(&enabled)
 	return enabled, notFoundOK(err)
-}
-
-func hasRole(roles []RoleInfo, r enum.Role) bool {
-	for _, x := range roles {
-		if x.Role == r {
-			return true
-		}
-	}
-	return false
 }
 
 // notFoundOK turns "no rows" into a plain false for the caller.
@@ -164,4 +134,42 @@ func notFoundOK(err error) error {
 		return nil
 	}
 	return err
+}
+
+// totpRow is the stored authenticator secret of a super admin.
+type totpRow struct {
+	SecretEnc    []byte
+	Enabled      bool
+	LastUsedStep int64
+}
+
+// totpForUpdate locks the row, so two codes cannot both pass the replay check.
+func totpForUpdate(ctx context.Context, tx *db.Tx, userID uuid.UUID) (totpRow, bool, error) {
+	var t totpRow
+	err := tx.QueryRow(ctx, `
+		SELECT secret_enc, enabled_at IS NOT NULL, last_used_step FROM admin_totp WHERE user_id = $1 FOR UPDATE`, userID).
+		Scan(&t.SecretEnc, &t.Enabled, &t.LastUsedStep)
+	return t, err == nil, notFoundOK(err)
+}
+
+// saveTotpSecret stores a pending secret. A finished setup is never replaced.
+func saveTotpSecret(ctx context.Context, tx *db.Tx, userID uuid.UUID, sealed []byte) (bool, error) {
+	tag, err := tx.Exec(ctx, `
+		INSERT INTO admin_totp (user_id, secret_enc) VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET secret_enc = EXCLUDED.secret_enc, last_used_step = 0
+		WHERE admin_totp.enabled_at IS NULL`, userID, sealed)
+	return tag.RowsAffected() == 1, err
+}
+
+// useTotpStep records the accepted step and turns TOTP on at the first success.
+func useTotpStep(ctx context.Context, tx *db.Tx, userID uuid.UUID, step int64) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE admin_totp SET last_used_step = $2, enabled_at = coalesce(enabled_at, now()) WHERE user_id = $1`, userID, step)
+	return err
+}
+
+func markSessionTotp(ctx context.Context, tx *db.Tx, userID, sessionID uuid.UUID) (bool, error) {
+	tag, err := tx.Exec(ctx, `
+		UPDATE sessions SET totp_ok = true WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`, sessionID, userID)
+	return tag.RowsAffected() == 1, err
 }

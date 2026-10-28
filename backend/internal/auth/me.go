@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"gp/internal/shared/apperr"
+	"gp/internal/shared/authz"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
 )
@@ -22,28 +23,28 @@ func maskPhone(e164 string) string {
 
 // loadMe builds the client view. totpOK is whether this session passed the
 // authenticator check; it only matters for super admins.
-func loadMe(ctx context.Context, tx *db.Tx, userID uuid.UUID, totpOK bool) (Me, error) {
+func (s *Service) loadMe(ctx context.Context, tx *db.Tx, userID uuid.UUID, totpOK bool) (Me, error) {
 	u, ok, err := userByID(ctx, tx, userID)
 	if err != nil {
 		return Me{}, err
 	}
-	if !ok || u.Status != statusActive {
+	if !ok || u.Status != enum.UserStatusActive {
 		return Me{}, apperr.New(apperr.Unauthenticated)
 	}
-	roles, err := rolesOf(ctx, tx, userID)
+	ms, err := s.team.MembershipsTx(ctx, tx, userID)
 	if err != nil {
 		return Me{}, err
 	}
 	me := Me{
 		ID: u.ID, Name: u.Name, Email: u.Email,
 		PhoneVerified: u.PhoneVerified, NeedsOnboarding: !u.PhoneVerified,
-		Roles: roles, AdminTotp: AdminTotpNotRequired,
+		Roles: roleInfos(ms), AdminTotp: AdminTotpNotRequired,
 	}
 	if u.Phone != nil {
 		m := maskPhone(*u.Phone)
 		me.PhoneMasked = &m
 	}
-	if hasRole(roles, enum.RoleSuperAdmin) {
+	if isSuperAdmin(ms) {
 		enabled, err := totpEnabled(ctx, tx, userID)
 		if err != nil {
 			return Me{}, err
@@ -58,4 +59,26 @@ func loadMe(ctx context.Context, tx *db.Tx, userID uuid.UUID, totpOK bool) (Me, 
 		}
 	}
 	return me, nil
+}
+
+func roleInfos(ms []authz.Membership) []RoleInfo {
+	out := make([]RoleInfo, 0, len(ms))
+	for _, m := range ms {
+		r := RoleInfo{Role: m.Role}
+		if m.ShopID != uuid.Nil {
+			id, slug, name := m.ShopID, m.ShopSlug, m.ShopName
+			r.ShopID, r.ShopSlug, r.ShopName = &id, &slug, &name
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+func isSuperAdmin(ms []authz.Membership) bool {
+	for _, m := range ms {
+		if m.Role == enum.RoleSuperAdmin {
+			return true
+		}
+	}
+	return false
 }

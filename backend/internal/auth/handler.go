@@ -21,6 +21,8 @@ const (
 
 	// A Google ID token is about 1 KB; this only stops absurd input early.
 	maxIDTokenLen = 4096
+	// An invite token is 43 characters; the cap only stops absurd input early.
+	maxInviteTokenLen = 128
 )
 
 type Handler struct {
@@ -37,7 +39,8 @@ func NewHandler(svc *Service, cfg *config.Config) *Handler {
 func (h *Handler) Authenticate(r *http.Request) (authn.Actor, bool) { return h.svc.Authenticate(r) }
 
 type googleBody struct {
-	IDToken string `json:"idToken"`
+	IDToken     string `json:"idToken"`
+	InviteToken string `json:"inviteToken"`
 }
 
 // Google handles POST /auth/google.
@@ -51,7 +54,11 @@ func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, apperr.Validation(map[string]string{"idToken": "invalid"}))
 		return
 	}
-	me, tokens, err := h.svc.SignIn(r.Context(), in.IDToken, clientInfo(r))
+	if len(in.InviteToken) > maxInviteTokenLen {
+		httpx.Error(w, r, apperr.Validation(map[string]string{"inviteToken": "invalid"}))
+		return
+	}
+	me, tokens, err := h.svc.SignIn(r.Context(), in.IDToken, in.InviteToken, clientInfo(r))
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -152,4 +159,36 @@ func (h *Handler) cookie(name, value, path string, expires time.Time) *http.Cook
 
 func clientInfo(r *http.Request) ClientInfo {
 	return ClientInfo{IP: httpx.ClientIP(r), UserAgent: r.UserAgent()}
+}
+
+// TotpSetup handles POST /auth/totp/setup.
+func (h *Handler) TotpSetup(w http.ResponseWriter, r *http.Request) {
+	actor, _ := authn.From(r.Context())
+	out, err := h.svc.TotpSetup(r.Context(), actor)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+type totpBody struct {
+	Code string `json:"code"`
+}
+
+// TotpVerify handles POST /auth/totp/verify. Only the access cookie changes.
+func (h *Handler) TotpVerify(w http.ResponseWriter, r *http.Request) {
+	actor, _ := authn.From(r.Context())
+	var in totpBody
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	me, tokens, err := h.svc.TotpVerify(r.Context(), actor, in.Code)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	http.SetCookie(w, h.cookie(AccessCookie, tokens.Access, "/", tokens.AccessExpires))
+	httpx.JSON(w, http.StatusOK, me)
 }

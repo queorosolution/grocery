@@ -8,8 +8,10 @@ import (
 	"gp/internal/auth"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
+	"gp/internal/shared/authz"
 	"gp/internal/shared/config"
 	"gp/internal/shared/httpx"
+	"gp/internal/team"
 )
 
 // Base is the path prefix of every API route.
@@ -20,15 +22,19 @@ type Deps struct {
 	Config *config.Config
 	// Auth serves sign-in, sessions and "me". Nil means no sign-in: only public
 	// routes work, and every guarded route answers 401.
-	Auth         *auth.Handler
+	Auth *auth.Handler
+	// Team serves the shop team and admin invites. Nil means no such routes.
+	Team         *team.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
-	Authorize    Authorizer
-	VerifySig    SigVerifier
+	// Memberships loads the caller's roles for admin and perm: routes. Nil
+	// denies them all.
+	Memberships authz.Loader
+	VerifySig   SigVerifier
 }
 
 // New returns the full API handler with the middleware chain applied.
 func New(d Deps) nethttp.Handler {
-	return build(d, routes(d))
+	return build(d, Routes(d))
 }
 
 func build(d Deps, table []Route) nethttp.Handler {
@@ -36,7 +42,7 @@ func build(d Deps, table []Route) nethttp.Handler {
 	if authenticate == nil && d.Auth != nil {
 		authenticate = d.Auth.Authenticate
 	}
-	g := guards{authorize: d.Authorize, verifySig: d.VerifySig}
+	g := guards{memberships: d.Memberships, verifySig: d.VerifySig}
 	mux := nethttp.NewServeMux()
 	byPattern := make(map[string]Route, len(table))
 	for _, rt := range table {

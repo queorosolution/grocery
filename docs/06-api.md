@@ -127,15 +127,15 @@ Body: `{ "idToken": "…", "inviteToken": "…optional…" }`
 - Verifies the Google token. Creates the user on first sign-in. Accepts the invite if given (email must match).
 - Sets cookies. Returns the same `me` object as `/bootstrap`.
 - Errors: `UNAUTHENTICATED` (bad token), `FORBIDDEN` (blocked user, invite email mismatch), `RATE_LIMITED`.
-- Unknown fields are rejected, so `inviteToken` is accepted only from the invites step (P08) on.
+- `inviteToken` (optional): the invite must be usable (unknown, used, revoked or expired → `404 NOT_FOUND`) and its e-mail must equal the Google e-mail (`403`). A refused accept signs nobody in and creates nothing.
 - If the e-mail is in `SUPER_ADMIN_EMAILS`, a `PLATFORM / SUPER_ADMIN` membership is created on sign-in (still needs TOTP for admin routes).
 - The limit is 10 attempts per 10 minutes per IP (before the token is checked) and per Google account (after).
 
 ### `POST /auth/totp/setup` — user with SUPER_ADMIN membership, `adminTotp = SETUP_NEEDED`
-Returns `{ "otpauthUri": "otpauth://totp/…", "secretMasked": "…" }` once. Show as QR.
+Returns `{ "otpauthUri": "otpauth://totp/…", "secretMasked": "ABCD••••••••" }` once. Show as QR. Can be repeated until the first code is accepted (the pending secret is replaced); after that `403`. The secret is stored AES-256-GCM encrypted.
 
 ### `POST /auth/totp/verify` — same user
-Body `{ "code": "123456" }`. Marks the session `totp_ok`. First verify also enables TOTP. Errors: `TOTP_INVALID`, `RATE_LIMITED` (5 / 15 min).
+Body `{ "code": "123456" }`. Marks the session `totp_ok`, sets a new `gp_at` cookie (the refresh cookie is unchanged) and returns `me`. First verify also enables TOTP. A code works once (`last_used_step`); one step of clock drift is allowed. Errors: `TOTP_INVALID`, `RATE_LIMITED` (5 tries / 15 min per user, counted whether right or wrong), `FORBIDDEN` (not a super admin, or no setup yet).
 
 ### `POST /auth/refresh` — refresh cookie
 Rotates the refresh token and sets new cookies, `204`. Reuse of an old token → whole family revoked → `401` and the `auth.refresh_reuse` alarm event. A refused refresh also clears both cookies. A blocked user or an expired token → `401`.
@@ -290,9 +290,9 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 | `GET` | `/products?q=&cursor=&available=` | `order.review` | — | Includes `managedBy` |
 | `PATCH` | `/products/{shopProductId}` | `product.edit` | `{ shopPriceCents, mrpCents, stockQty, isAvailable, maxPerOrder }` | Connector-managed fields → `400 VALIDATION_ERROR` (`fields.<name> = "managed_by_connector"`) |
 | `GET` | `/team` | `team.manage` | — | Members + pending invites |
-| `POST` | `/team/invites` | `team.manage` | `{ email, role: "SHOP_STAFF" \| "SHOP_DRIVER", canEditProducts }` | Owner cannot create owners |
-| `PATCH` | `/team/{membershipId}` | `team.manage` | `{ role, canEditProducts }` | Cannot change own role |
-| `DELETE` | `/team/{membershipId}` | `team.manage` | — | Cannot remove last owner |
+| `POST` | `/team/invites` | `team.manage` | `{ email, role: "SHOP_STAFF" \| "SHOP_DRIVER", canEditProducts }` | Owner cannot create owners (`400`). `201 { invite, token }`. The **token is shown once** (only its hash is stored); there is no e-mail sender, so the console shows the invite link to the owner to pass on (the sign-in page sends the token as `inviteToken`). A new invite for the same e-mail replaces the old one. |
+| `PATCH` | `/team/{membershipId}` | `team.manage` | `{ role, canEditProducts }` (both optional, one needed) | `204`. Cannot change own role or an owner (`403`); role only `SHOP_STAFF` / `SHOP_DRIVER`; the flag is cleared for drivers |
+| `DELETE` | `/team/{membershipId}` | `team.manage` | — | `204`. Cannot remove last owner (`409 CONFLICT`). Takes effect on the next request |
 | `GET` | `/dashboard?from=&to=` | `dashboard.shop_ops` | dates (Colombo) | Full numbers only with `dashboard.shop_full` |
 | `GET` | `/payouts` | `dashboard.shop_full` | — | Balance due + payout history |
 
@@ -361,7 +361,7 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 | Refunds | `GET /refunds?status=`, `POST /refunds/{id}/decide` (`{ approve, note }`), `POST /refunds/{id}/paid-out` (`{ reference }`) | |
 | Tickets | `GET /tickets?status=`, `POST /tickets/{id}/resolve` | |
 | Payouts | `GET /payouts?shopId=`, `POST /payouts` (`{ shopId, from, to }` → DRAFT with amount from ledger), `POST /payouts/{id}/paid` (`{ reference }`) | |
-| People | `GET /users?q=`, `PATCH /users/{id}` (`{ status }`), `POST /invites` (`{ email, role, shopId }`), `DELETE /invites/{id}` | Owners and platform drivers |
+| People | `GET /users?q=`, `PATCH /users/{id}` (`{ status }`), `POST /invites` (`{ email, role, shopId }`), `DELETE /invites/{id}` | `q` is a prefix of e-mail or name (max 50 rows, newest first). `status` is `ACTIVE` or `BLOCKED`; blocking ends every session; an admin cannot block themselves (`403`). Invites: `SHOP_OWNER` / `SHOP_STAFF` / `SHOP_DRIVER` need `shopId`, `PLATFORM_DRIVER` must not have one; `201 { invite, token }` (token shown once); revoking an unused invite is `204`, otherwise `404` |
 | Insight | `GET /dashboard?from=&to=`, `GET /notifications/usage?from=&to=`, `GET /audit?entity=&entityId=&cursor=` | |
 
 ## 11. Uploads

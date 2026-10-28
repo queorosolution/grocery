@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -79,11 +78,4 @@ func parseAccess(key []byte, issuer, raw string) (userID, sessionID uuid.UUID, t
 		return uuid.Nil, uuid.Nil, false, err
 	}
 	return userID, sessionID, c.Totp, nil
-}
-
-// hashRefresh is what we store. A plain SHA-256 is right here: the token is 32
-// random bytes, so there is nothing to brute-force.
-func hashRefresh(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
 }

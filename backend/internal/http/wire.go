@@ -8,6 +8,7 @@ import (
 	"gp/internal/shared/config"
 	"gp/internal/shared/db"
 	"gp/internal/shared/secrets"
+	"gp/internal/team"
 )
 
 // Wire builds the real dependencies for the API: the database, the modules and
@@ -18,9 +19,12 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Getter) (Deps, fu
 	if err != nil {
 		return Deps{}, nil, fmt.Errorf("wire: %w", err)
 	}
-	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID))
+	teamSvc := team.NewService(database)
+	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
 	return Deps{
-		Config: cfg,
-		Auth:   auth.NewHandler(authSvc, cfg),
+		Config:      cfg,
+		Auth:        auth.NewHandler(authSvc, cfg),
+		Team:        team.NewHandler(teamSvc),
+		Memberships: teamSvc,
 	}, database.Close, nil
 }

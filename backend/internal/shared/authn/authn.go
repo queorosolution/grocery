@@ -4,23 +4,19 @@ package authn
 
 import (
 	"context"
-	"slices"
 
 	"github.com/google/uuid"
-
-	"gp/internal/shared/enum"
 )
 
-// Actor is a signed-in user as the access token describes them.
+// Actor is a signed-in user as the access token describes them. Roles are not
+// in the token: a role change must act at once, so the guards load memberships
+// from the database for the routes that need them.
 type Actor struct {
 	UserID    uuid.UUID
 	SessionID uuid.UUID
-	Roles     []enum.Role
 	// TotpOK is true when this session passed the authenticator-app check.
 	TotpOK bool
 }
-
-func (a Actor) HasRole(r enum.Role) bool { return slices.Contains(a.Roles, r) }
 
 type ctxKey struct{}
 

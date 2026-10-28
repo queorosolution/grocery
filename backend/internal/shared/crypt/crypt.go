@@ -106,6 +106,14 @@ func HMAC(key []byte, parts ...[]byte) []byte {
 	return mac.Sum(nil)
 }
 
+// HashToken is the stored form of a random 32-byte token (refresh and invite
+// tokens). A plain SHA-256 is right here: the token has 256 bits of entropy, so
+// there is nothing to brute-force and no need for a key.
+func HashToken(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
+}
+
 // Equal compares two secrets in constant time.
 func Equal(a, b []byte) bool { return subtle.ConstantTimeCompare(a, b) == 1 }
 
