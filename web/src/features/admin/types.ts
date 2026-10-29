@@ -117,3 +117,88 @@ export interface AdminDashboard {
   days: { day: string; salesCents: number; orders: number }[];
   shops: { shopId: string; name: string; salesCents: number; orders: number; delivered: number; platformIncomeCents: number }[];
 }
+
+// Connector to the shop's own database (docs/06 section 10, docs/09 section 5). The connection string is never in these shapes.
+
+export const COLUMN_KEYS = ["externalId", "name", "price", "barcode", "mrp", "stock", "available", "brand", "unit", "weightG", "category", "imageUrl", "updatedAt"] as const;
+export type ColumnKey = (typeof COLUMN_KEYS)[number];
+export const REQUIRED_COLUMNS: readonly ColumnKey[] = ["externalId", "name", "price"];
+
+export interface Connector {
+  id: string;
+  shopId: string;
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "FAILING";
+  host: string;
+  sourceTable: string | null;
+  moneyUnit: "RUPEES" | "CENTS";
+  changeColumn: string | null;
+  intervalMin: number;
+  autoCreateProducts: boolean;
+  columns: Partial<Record<ColumnKey, string>>;
+  lastRunAt: string | null;
+}
+
+export interface Mapping {
+  sourceTable: string;
+  moneyUnit: Connector["moneyUnit"];
+  changeColumn: string;
+  intervalMin: number;
+  autoCreateProducts: boolean;
+  columns: Partial<Record<ColumnKey, string>>;
+}
+
+export interface PreviewRow {
+  externalId: string;
+  name: string | null;
+  barcode: string | null;
+  priceCents: number | null;
+  mrpCents: number | null;
+  stockQty: number | null;
+  available: boolean | null;
+  action: "create" | "update" | "unmatched" | "hold" | "invalid";
+  reason: string | null;
+}
+
+export interface SyncRun {
+  id: string;
+  trigger: "SCHEDULE" | "MANUAL" | "WEBHOOK";
+  status: "RUNNING" | "SUCCESS" | "FAILED" | "SKIPPED";
+  rowsRead: number;
+  rowsChanged: number;
+  rowsUnmatched: number;
+  rowsHeld: number;
+  error: "source_failed" | "apply_failed" | "timed_out" | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface SyncIssue {
+  id: string;
+  connectorId: string;
+  shopId: string;
+  kind: "UNMATCHED" | "PRICE_HOLD";
+  externalId: string;
+  payload: {
+    reason: string;
+    name: string | null;
+    barcode: string | null;
+    brand: string | null;
+    priceCents: number | null;
+    mrpCents: number | null;
+    stockQty: number | null;
+    available: boolean | null;
+    shopProductId?: string;
+    currentPriceCents?: number;
+  };
+  status: "OPEN" | "RESOLVED" | "IGNORED";
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface MasterProduct {
+  id: string;
+  barcode: string | null;
+  name: string;
+  brand: string | null;
+  sizeLabel: string | null;
+}

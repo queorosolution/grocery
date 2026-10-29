@@ -237,6 +237,7 @@ flowchart TD
 - **Shop setup** `/console/admin/shop/:id?tab=…`: profile, settings (with the cart-service card), hours, slots, fees (with a fee preview), payment. The readiness card on top lists what is missing and links to the tab that fixes it; the "taking orders" switch stays off until nothing is missing (the API checks again).
 - **Secrets are write-only.** The PayHere merchant secret is a password box that is sent once and emptied after the save; the list only shows "Secret saved" (`hasSecret`). The cart card shows the public key only.
 - Money is typed in rupees and sent as exact cents (`parseRupees`); km and kg use at most 2 decimals (`parseDec2`). Times are Sri Lanka time; "24:00" is allowed only as a closing time.
+- **Connector wizard** (the shop's `connector` tab): connect → test → table → map → preview → switch on → trigger secret. The connection string goes in a password box that is emptied as soon as it is sent; only the masked host comes back. The trigger secret is shown once in a window and dropped from memory when it closes. Run errors are one of three fixed words; text from the shop's database is never shown. `/console/admin/sync-issues` lists rows with no match (link, add, ignore) and held prices (use new, keep current, ignore); a price of 0 cannot be approved.
 - The shop logo is a link to an image on our image host for now; picture upload through `POST /uploads/presign` is not built yet.
 
 ## 9. Frontend security rules
