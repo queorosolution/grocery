@@ -38,3 +38,17 @@ export function SaveNotice({ error, saved }: { error: unknown; saved: boolean })
   }
   return saved ? <p role="status" className="text-sm text-success">{t("admin.saved")}</p> : null;
 }
+
+/** A percent typed as text ("12.5") to basis points (1250), by splitting the text: no floating point. Null outside 0.01 to 100. */
+export function parsePercentBp(text: string): number | null {
+  const m = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(text.trim());
+  if (!m) return null;
+  const bp = Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
+  return bp >= 1 && bp <= 10000 ? bp : null;
+}
+
+/** Basis points as percent text without floating point: 1250 -> "12.5", 1205 -> "12.05", 1200 -> "12". */
+export function bpToText(bp: number): string {
+  const rest = bp % 100;
+  return `${Math.trunc(bp / 100)}${rest === 0 ? "" : `.${String(rest).padStart(2, "0").replace(/0$/, "")}`}`;
+}

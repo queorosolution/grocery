@@ -532,7 +532,9 @@
     "section": {
       "dashboard": "Dashboard",
       "shops": "Shops",
-      "issues": "Sync issues"
+      "issues": "Sync issues",
+      "catalog": "Catalog",
+      "coupons": "Coupons"
     },
     "dash": {
       "range7": "7 days",
@@ -585,7 +587,8 @@
         "slots": "Slots",
         "fees": "Fees",
         "payment": "Payment",
-        "connector": "Connector"
+        "connector": "Connector",
+        "products": "Products"
       },
       "readiness": "Ready to open?",
       "ready": "Ready. You can switch on orders.",
@@ -861,6 +864,75 @@
       "approve": "Use the new price",
       "reject": "Keep the current price",
       "ignore": "Ignore"
+    },
+    "more": "Show more",
+    "catalog": {
+      "products": "Products",
+      "categories": "Categories",
+      "search": "Search products",
+      "newProduct": "New product",
+      "editProduct": "Change product",
+      "newCategory": "New category",
+      "editCategory": "Change category",
+      "noProducts": "No products",
+      "noCategories": "No categories yet",
+      "slug": "Web name",
+      "parent": "Inside",
+      "topLevel": "Top level",
+      "sort": "Order",
+      "defaultWeight": "Usual weight",
+      "grams": "In grams",
+      "category": "Category",
+      "noCategory": "None",
+      "size": "Size label",
+      "image": "Image link",
+      "keywords": "Search words",
+      "barcodeHint": "6 to 14 digits",
+      "status_ACTIVE": "Active",
+      "status_HIDDEN": "Hidden"
+    },
+    "markups": {
+      "title": "Price markup by category",
+      "body": "Basis points added to the shop price (100 = 1%, up to 2000). Saving prices every product of this shop again.",
+      "save": "Save markups"
+    },
+    "onsale": {
+      "title": "Put a product on sale",
+      "search": "Find a catalog product",
+      "change": "Change",
+      "price": "Shop price (Rs)",
+      "mrp": "MRP (Rs)",
+      "stock": "Stock",
+      "max": "Most per order",
+      "available": "Available now",
+      "add": "Put on sale"
+    },
+    "coupons": {
+      "new": "New coupon",
+      "edit": "Change coupon",
+      "empty": "No coupons",
+      "code": "Code",
+      "codeHint": "4 to 20 letters and numbers",
+      "shop": "Shop",
+      "type": "Type",
+      "type_PERCENT": "Percent off",
+      "type_FIXED": "Rupees off",
+      "percent": "Percent (like 12.5)",
+      "amount": "Amount (Rs)",
+      "value": "Value",
+      "maxOff": "Biggest discount (Rs)",
+      "minOrder": "Smallest bill (Rs)",
+      "starts": "Starts",
+      "ends": "Ends",
+      "usageLimit": "Total uses",
+      "perUser": "Uses per customer",
+      "used": "Used",
+      "fundedBy": "Who pays",
+      "funded_PLATFORM": "Platform",
+      "funded_SHOP": "Shop",
+      "allowLoss": "Allow the platform to lose money on it",
+      "status_ACTIVE": "Active",
+      "status_PAUSED": "Paused"
     }
   }
 }

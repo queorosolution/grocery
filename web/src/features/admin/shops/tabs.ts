@@ -6,6 +6,7 @@ import { FeesTab } from "./FeesTab";
 import { HoursTab } from "./HoursTab";
 import { PaymentTab } from "./PaymentTab";
 import { ProfileTab } from "./ProfileTab";
+import { ShopProductsTab } from "./ShopProductsTab";
 import { SettingsTab } from "./SettingsTab";
 import { SlotsTab } from "./SlotsTab";
 
@@ -17,5 +18,6 @@ export const SHOP_TABS: readonly { id: string; label: MessageKey; Tab: Component
   { id: "slots", label: "admin.shop.tab.slots", Tab: SlotsTab },
   { id: "fees", label: "admin.shop.tab.fees", Tab: FeesTab },
   { id: "payment", label: "admin.shop.tab.payment", Tab: PaymentTab },
+  { id: "products", label: "admin.shop.tab.products", Tab: ShopProductsTab },
   { id: "connector", label: "admin.shop.tab.connector", Tab: ConnectorTab },
 ];

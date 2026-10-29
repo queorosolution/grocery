@@ -40,3 +40,16 @@ export function addDays(date: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+const COLOMBO_OFFSET_MS = 5.5 * 3_600_000;
+
+/** An instant as the text of a datetime-local box in Colombo time: "2026-11-02T08:30". */
+export const toColomboLocal = (iso: string): string => new Date(new Date(iso).getTime() + COLOMBO_OFFSET_MS).toISOString().slice(0, 16);
+
+/** The text of a datetime-local box read as Colombo time, in ISO form for the API. Null when it is empty or not a date. */
+export function fromColomboLocal(local: string): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(local);
+  if (!m) return null;
+  const d = new Date(colomboIso(m[1]!, m[2]!));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
