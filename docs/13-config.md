@@ -65,7 +65,7 @@ Create random values with `openssl rand -base64 32`.
 | `NEXT_PUBLIC_CART_API_BASE` | `https://api.cart.example.com/v1` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | `…apps.googleusercontent.com` |
 | `NEXT_PUBLIC_MAPS_KEY` | browser key (referrer-restricted) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `0x4AAA…` |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `0x4AAA…` (local builds use Cloudflare's always-pass test key `1x00000000000000000000AA`) |
 | `NEXT_PUBLIC_IMG_BASE` | `https://img.nearshop.lk` |
 | `NEXT_PUBLIC_PLATFORM_NAME` | `NearShop` (shown before bootstrap loads; also used in build-time page titles) |
 | `NEXT_PUBLIC_PLATFORM_DOMAIN` | `nearshop.lk` (filled into `_headers` and Open Graph URLs at build) |

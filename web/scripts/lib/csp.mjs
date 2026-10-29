@@ -36,7 +36,7 @@ const origin = (url) => {
 /** The policy of docs/10 section 5 with this build's own hosts and the page's script hashes. */
 export function buildCsp({ hashes = [], apiBase = "", cartApiBase = "", imgBase = "" }) {
   const own = (url) => origin(url);
-  const scripts = ["'self'", ...hashes, "https://accounts.google.com/gsi/client", "https://maps.googleapis.com", "https://maps.gstatic.com"];
+  const scripts = ["'self'", ...hashes, "https://accounts.google.com/gsi/client", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://challenges.cloudflare.com/turnstile/"];
   const connect = ["'self'", own(apiBase), own(cartApiBase), "https://maps.googleapis.com", "https://places.googleapis.com",
     "https://accounts.google.com/gsi/", "https://*.r2.cloudflarestorage.com", "https://challenges.cloudflare.com"];
   const images = ["'self'", "data:", own(imgBase), "https://maps.gstatic.com", "https://maps.googleapis.com", "https://*.ggpht.com", "https://lh3.googleusercontent.com"];

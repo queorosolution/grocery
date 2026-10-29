@@ -22,7 +22,7 @@ export const env = {
   cartApiBase: trimSlash(pick("NEXT_PUBLIC_CART_API_BASE", process.env.NEXT_PUBLIC_CART_API_BASE, "")),
   googleClientId: pick("NEXT_PUBLIC_GOOGLE_CLIENT_ID", process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID, ""),
   mapsKey: pick("NEXT_PUBLIC_MAPS_KEY", process.env.NEXT_PUBLIC_MAPS_KEY, ""),
-  turnstileSiteKey: pick("NEXT_PUBLIC_TURNSTILE_SITE_KEY", process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY, ""),
+  turnstileSiteKey: pick("NEXT_PUBLIC_TURNSTILE_SITE_KEY", process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY, "1x00000000000000000000AA"),
   imgBase: trimSlash(pick("NEXT_PUBLIC_IMG_BASE", process.env.NEXT_PUBLIC_IMG_BASE, "")),
   platformName: pick("NEXT_PUBLIC_PLATFORM_NAME", process.env.NEXT_PUBLIC_PLATFORM_NAME, "NearShop"),
   platformDomain: pick("NEXT_PUBLIC_PLATFORM_DOMAIN", process.env.NEXT_PUBLIC_PLATFORM_DOMAIN, "localhost"),
