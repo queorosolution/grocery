@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { MessageKey } from "@/lib/i18n";
+import { ConnectorTab } from "../connector/ConnectorTab";
 import type { ShopDetail } from "../types";
 import { FeesTab } from "./FeesTab";
 import { HoursTab } from "./HoursTab";
@@ -16,4 +17,5 @@ export const SHOP_TABS: readonly { id: string; label: MessageKey; Tab: Component
   { id: "slots", label: "admin.shop.tab.slots", Tab: SlotsTab },
   { id: "fees", label: "admin.shop.tab.fees", Tab: FeesTab },
   { id: "payment", label: "admin.shop.tab.payment", Tab: PaymentTab },
+  { id: "connector", label: "admin.shop.tab.connector", Tab: ConnectorTab },
 ];

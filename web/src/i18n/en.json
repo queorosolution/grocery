@@ -531,7 +531,8 @@
     },
     "section": {
       "dashboard": "Dashboard",
-      "shops": "Shops"
+      "shops": "Shops",
+      "issues": "Sync issues"
     },
     "dash": {
       "range7": "7 days",
@@ -731,6 +732,135 @@
       "accountName": "Account name",
       "accountNumber": "Account number",
       "branch": "Branch"
+    },
+    "connector": {
+      "col": {
+        "externalId": "Id in the shop's table",
+        "name": "Name",
+        "price": "Price",
+        "barcode": "Barcode",
+        "mrp": "MRP",
+        "stock": "Stock",
+        "available": "Available",
+        "brand": "Brand",
+        "unit": "Unit",
+        "weightG": "Weight (g)",
+        "category": "Category",
+        "imageUrl": "Image link",
+        "updatedAt": "Last changed time"
+      },
+      "stepConnect": "1. Connect",
+      "stepMap": "2. Table and columns",
+      "stepPreview": "3. Preview",
+      "stepActivate": "4. Switch on",
+      "stepTrigger": "5. Instant updates",
+      "none": "No connection yet. Paste the read-only connection string the shop gave you.",
+      "string": "Connection string",
+      "replace": "Replace the connection string",
+      "stringHint": "Saved once and never shown again. Use a read-only login with sslmode=require.",
+      "stringSend": "Save string",
+      "stringSaved": "New string saved.",
+      "host": "Host",
+      "test": "Test connection",
+      "testOk": "Connected. Server {version}.",
+      "canWrite": "This login can write to the shop's database. Use a read-only login.",
+      "table": "Table or view",
+      "pickTable": "Choose a table",
+      "noColumn": "Not used",
+      "moneyUnit": "Prices in the table are in",
+      "rupees": "Rupees",
+      "cents": "Cents",
+      "changeColumn": "Change time column",
+      "changeHint": "Used to read only what changed.",
+      "sameAsUpdated": "Same as last changed time",
+      "interval": "Safety check every",
+      "intervalHint": "Minutes, 10 to 1440.",
+      "autoCreate": "Add products that are not in our catalog yet",
+      "saveMapping": "Save mapping",
+      "previewRun": "Read 20 rows",
+      "previewEmpty": "No rows",
+      "action": "What happens",
+      "why": "Why",
+      "act": {
+        "create": "Add",
+        "update": "Update",
+        "unmatched": "No match",
+        "hold": "Held",
+        "invalid": "Skipped"
+      },
+      "reason": {
+        "barcode": "Matched by barcode",
+        "auto_create": "New product",
+        "no_barcode": "No barcode",
+        "unknown_barcode": "Barcode not in catalog",
+        "already_linked": "Already linked",
+        "zero_price": "Price is zero",
+        "bad_price": "Price unreadable",
+        "over_mrp": "Price above MRP",
+        "big_drop": "Big price drop",
+        "no_name": "No name"
+      },
+      "status": {
+        "DRAFT": "Draft",
+        "ACTIVE": "On",
+        "PAUSED": "Paused",
+        "FAILING": "Failing"
+      },
+      "lastRun": "Last run {at}",
+      "neverRun": "Never run.",
+      "activate": "Switch on",
+      "pause": "Pause",
+      "syncNow": "Sync now",
+      "syncQueued": "Sync started.",
+      "triggerBody": "The shop's own system calls us when a price changes. It signs the call with a secret made here.",
+      "triggerMake": "Make a new secret",
+      "triggerTitle": "Trigger secret",
+      "triggerOnce": "Copy it now. It is shown only once, and the old secret stops working.",
+      "triggerDone": "I have copied it",
+      "copy": "Copy",
+      "copied": "Copied",
+      "runs": "Recent runs",
+      "noRuns": "No runs yet.",
+      "runCounts": "{read} read, {changed} changed, {unmatched} no match, {held} held",
+      "run": {
+        "RUNNING": "Running",
+        "SUCCESS": "Done",
+        "FAILED": "Failed",
+        "SKIPPED": "Skipped"
+      },
+      "trigger": {
+        "SCHEDULE": "Schedule",
+        "MANUAL": "Manual",
+        "WEBHOOK": "Shop call"
+      },
+      "error": {
+        "source_failed": "Could not read the shop's database",
+        "apply_failed": "Could not save the changes",
+        "timed_out": "Took too long"
+      }
+    },
+    "issues": {
+      "status": {
+        "OPEN": "Open",
+        "RESOLVED": "Resolved",
+        "IGNORED": "Ignored"
+      },
+      "shop": "Shop",
+      "allShops": "All shops",
+      "empty": "Nothing here",
+      "kind": {
+        "UNMATCHED": "No match",
+        "PRICE_HOLD": "Price held"
+      },
+      "resolve": "Resolve",
+      "externalId": "Id in shop",
+      "price": "New price",
+      "current": "Current price",
+      "search": "Link to a product in our catalog",
+      "create": "Add as a new product",
+      "approve": "Use the new price",
+      "reject": "Keep the current price",
+      "ignore": "Ignore"
     }
   }
 }
