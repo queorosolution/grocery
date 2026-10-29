@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+.next/
+out/
+.aws-sam/
+node_modules/
+*.local
