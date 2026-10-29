@@ -224,7 +224,17 @@ export async function notifyPlatform(externalIds) {
 ### 5.4 Mapping fields
 
 | Our field | Required | Notes |
-|---|---|---|
+|### 5.5 How the server connects (P16)
+
+- **TLS is checked.** `sslmode` may be `require`, `verify-ca` or `verify-full`; the server verifies the certificate chain and the host name in every case.
+- **SSRF guard.** The host is resolved once, every answer must be a public address, and the connection goes to that address (no second lookup). Private, loopback, link-local, multicast and cloud-metadata ranges are refused. Only port 5432 is allowed.
+- **Read-only per transaction.** Every read runs in `BEGIN READ ONLY` with `SET LOCAL statement_timeout`. This is done per transaction, not as a start-up parameter, so it also works through Neon's pooler. The server does not trust the login to be read-only; `test` warns when it is not.
+- **Allowed string parts.** `user`, `password`, host, port, database, `sslmode`, `channel_binding`, `connect_timeout`, `application_name`. Everything else is refused.
+- **Identifiers.** Table and column names are checked against `information_schema` first and quoted with `pgx.Identifier`. They never come straight from the request into SQL.
+- **Mapping keys** are the `Our field` names in 5.4. `updatedAt` also feeds `changeColumn` when none is given.
+- **Limits.** 30 s per call; preview reads 20 rows ordered by `externalId`.
+
+---|---|---|
 | `externalId` | yes | stable id in the source |
 | `name` | yes | |
 | `price` | yes | shop price; unit set by `moneyUnit` (`RUPEES` → × 100) |

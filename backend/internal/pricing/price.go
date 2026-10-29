@@ -18,6 +18,11 @@ var ErrBadInput = errors.New("pricing: price or markup out of range")
 // MaxMarkupBP is the largest markup, 20.00%, as in the schema.
 const MaxMarkupBP = 2000
 
+// MaxShopPriceCents is the highest shop price any source may set (Rs 5 million).
+// With the largest markup the customer price stays under the cart service's
+// limit of 999,999,999 cents, and the markup maths stays far from overflow.
+const MaxShopPriceCents = 500_000_000
+
 // OnlinePrice returns the customer price in cents.
 //
 //  1. raw = shopPrice x (10000 + markupBP) / 10000, rounded half up to the cent

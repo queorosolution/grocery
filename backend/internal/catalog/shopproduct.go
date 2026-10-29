@@ -18,11 +18,8 @@ import (
 	"gp/internal/shared/validate"
 )
 
-// Limits. A price above Rs 5 million is a typing mistake. With the largest
-// markup (20%) the customer price stays under the cart service's limit of
-// 999,999,999 cents, and the markup maths stays far from overflow.
+// Limits.
 const (
-	maxPriceCents      = 500_000_000
 	maxStock           = 1_000_000_000
 	defaultMaxPerOrder = 20
 )
@@ -179,7 +176,7 @@ func applyFields(ctx context.Context, tx *db.Tx, cur ShopProduct, in ShopProduct
 
 func checkPrice(v *validate.Validator, field string, cents *int64) {
 	if cents != nil {
-		v.Int(field, *cents, 1, maxPriceCents)
+		v.Int(field, *cents, 1, pricing.MaxShopPriceCents)
 	}
 }
 

@@ -114,6 +114,18 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPut, "/admin/shops/{id}/category-markups", Admin, d.Pricing.SetMarkups},
 		)
 	}
+	if d.Connector != nil {
+		table = append(table,
+			Route{nethttp.MethodPost, "/admin/shops/{id}/connector", Admin, d.Connector.Create},
+			Route{nethttp.MethodGet, "/admin/shops/{id}/connector", Admin, d.Connector.ForShop},
+			Route{nethttp.MethodPut, "/admin/connectors/{id}/secret", Admin, d.Connector.ReplaceSecret},
+			Route{nethttp.MethodPost, "/admin/connectors/{id}/test", Admin, d.Connector.Test},
+			Route{nethttp.MethodGet, "/admin/connectors/{id}/tables", Admin, d.Connector.Tables},
+			Route{nethttp.MethodGet, "/admin/connectors/{id}/columns", Admin, d.Connector.Columns},
+			Route{nethttp.MethodPut, "/admin/connectors/{id}/mapping", Admin, d.Connector.SetMapping},
+			Route{nethttp.MethodPost, "/admin/connectors/{id}/preview", Admin, d.Connector.Preview},
+		)
+	}
 	if d.Upload != nil {
 		table = append(table, Route{nethttp.MethodPost, "/uploads/presign", User, d.Upload.Presign})
 	}
