@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { vi, type Mock } from "vitest";
 import { ToastProvider } from "@/components/ui";
 import type { Bootstrap, Me } from "@/features/auth/types";
+import { CartProvider } from "@/features/cart/CartProvider";
 import { api } from "@/lib/api";
 
 // Helpers for screen tests. Each test file mocks "@/lib/api" itself (vi.mock is hoisted per file):
@@ -37,7 +38,7 @@ export function mockApi(handlers: Record<string, Handler>): Mock {
   return fake;
 }
 
-type Call = [string, { method?: string; body: Record<string, unknown> }];
+type Call = [string, { method?: string; body: Record<string, unknown>; query?: Record<string, unknown>; signal?: AbortSignal }];
 
 /** The calls made to one "METHOD /path", with the body each one sent. */
 export const calls = (fake: Mock, key: string): Call[] =>
@@ -45,7 +46,7 @@ export const calls = (fake: Mock, key: string): Call[] =>
 
 export function renderScreen(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return { client, ...render(<QueryClientProvider client={client}><ToastProvider>{ui}</ToastProvider></QueryClientProvider>) };
+  return { client, ...render(<QueryClientProvider client={client}><ToastProvider><CartProvider>{ui}</CartProvider></ToastProvider></QueryClientProvider>) };
 }
 
 export const noop = vi.fn();

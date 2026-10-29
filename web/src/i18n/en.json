@@ -31,13 +31,35 @@
   },
   "home": {
     "title": "Shops near you",
+    "allShops": "All shops",
     "emptyTitle": "Shops will show up here",
-    "emptyBody": "We are setting things up. Please check back soon."
+    "emptyBody": "We are setting things up. Please check back soon.",
+    "noneNear": "No shops deliver here yet",
+    "noneNearBody": "Try another place, or look at all shops.",
+    "useLocation": "Near me",
+    "clearLocation": "Show all",
+    "noLocation": "We could not get your location.",
+    "outsideSriLanka": "That place is outside Sri Lanka.",
+    "km": "{km} km",
+    "nextSlot": "Next {time}",
+    "deals": "Lowest prices today"
   },
   "shop": {
     "loading": "Opening shop",
     "title": "Shop",
-    "soon": "The shop page is coming soon."
+    "notFoundTitle": "We can't find that shop",
+    "notFoundBody": "The link may be old, or the shop is closed for now.",
+    "open": "Open",
+    "closed": "Closed",
+    "closedToday": "Closed today",
+    "hours": "Open {opens} – {closes}",
+    "minOrder": "Min {amount}",
+    "categories": "Categories",
+    "all": "All",
+    "buyAgain": "Buy again",
+    "noProducts": "Nothing here yet",
+    "noProductsBody": "This shop has no products in this category.",
+    "more": "Show more"
   },
   "order": {
     "title": "Order",
@@ -188,5 +210,39 @@
     "failed": "The map could not load.",
     "lat": "Latitude",
     "lng": "Longitude"
+  },
+  "product": {
+    "add": "Add",
+    "unavailable": "Not available"
+  },
+  "search": {
+    "shopLabel": "Shop",
+    "queryLabel": "What do you need?",
+    "allShops": "All shops",
+    "placeholder": "What do you need?",
+    "submit": "Search",
+    "startTitle": "Search for something",
+    "startBody": "Type at least {min} letters, like rice or milk.",
+    "noneTitle": "Nothing found",
+    "noneBody": "Check the spelling, or try a shorter word.",
+    "shops": "Shops",
+    "products": "Products"
+  },
+  "cart": {
+    "title": "Your cart",
+    "titleShop": "Cart · {shop}",
+    "open": "Open cart ({count})",
+    "items": "{count} items",
+    "viewCart": "View cart · {amount}",
+    "estimate": "Estimate, final price at checkout",
+    "checkout": "Checkout",
+    "emptyTitle": "Your cart is empty",
+    "emptyBody": "Add something from a shop and it will show up here.",
+    "clear": "Clear cart",
+    "failed": "Can't update cart, try again.",
+    "switchTitle": "Start a new cart?",
+    "switchBody": "Your cart has items from {from}. Clear it and start a new cart with {to}?",
+    "switchConfirm": "Start new cart",
+    "itemOne": "1 item"
   }
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CartButton } from "@/features/cart/CartButton";
 import { UserMenu } from "@/features/auth/UserMenu";
 import { env } from "@/lib/env";
 
@@ -8,7 +9,10 @@ export function Header() {
     <header className="sticky top-0 z-10 border-b border-line bg-bg">
       <div className="mx-auto flex h-14 max-w-[1120px] items-center justify-between px-4">
         <Link href="/" className="text-lg font-semibold text-accent">{env.platformName}</Link>
-        <UserMenu />
+        <div className="flex items-center gap-1">
+          <CartButton />
+          <UserMenu />
+        </div>
       </div>
     </header>
   );
