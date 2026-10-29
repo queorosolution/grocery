@@ -37,7 +37,7 @@ func dateOf(field, s string, def time.Time) (time.Time, error) {
 	if s == "" {
 		return def, nil
 	}
-	t, err := time.ParseInLocation(time.DateOnly, s, clock.Colombo(clock.Now()).Location())
+	t, err := clock.ParseDay(s)
 	if err != nil {
 		return t, apperr.Validation(map[string]string{field: "invalid"})
 	}

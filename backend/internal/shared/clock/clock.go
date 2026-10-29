@@ -36,3 +36,9 @@ func Freeze(t time.Time) (restore func()) {
 	prev := now.Swap(&f)
 	return func() { now.Store(prev) }
 }
+
+// ParseDay reads a YYYY-MM-DD date as midnight, Colombo time. Reports and
+// dashboards take their ranges this way.
+func ParseDay(s string) (time.Time, error) {
+	return time.ParseInLocation(time.DateOnly, s, colombo)
+}

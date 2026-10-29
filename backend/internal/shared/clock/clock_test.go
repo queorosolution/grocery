@@ -30,3 +30,15 @@ func TestColomboIsPlus0530(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+func TestParseDayIsColomboMidnight(t *testing.T) {
+	d, err := ParseDay("2026-10-29")
+	if err != nil || !d.Equal(time.Date(2026, 10, 28, 18, 30, 0, 0, time.UTC)) {
+		t.Fatalf("got %s, %v", d, err)
+	}
+	for _, bad := range []string{"", "29-10-2026", "2026-13-01", "2026-10-29T00:00:00Z"} {
+		if _, err := ParseDay(bad); err == nil {
+			t.Errorf("%q must be refused", bad)
+		}
+	}
+}

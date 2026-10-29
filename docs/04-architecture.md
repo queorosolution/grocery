@@ -101,8 +101,8 @@ Events are written to `outbox` in the business transaction, then sent to SQS.
 | Event | Producer | Consumers in `worker` |
 |---|---|---|
 | `order.submitted` | T01 | notify shop, stats |
-| `order.approved` | T02, T07 | notify customer |
-| `order.revised` | T03 | notify customer |
+| `order.approved` | T02, T07 | notify customer, stats (review time) |
+| `order.revised` | T03 | notify customer, stats (review time) |
 | `order.rejected` | T04 | notify customer, stats |
 | `order.expired` | T05, T08, T11 | notify customer + shop, stats |
 | `order.cancelled` | T06, T09, T12 | notify shop, stats |
@@ -133,7 +133,7 @@ Events are written to `outbox` in the business transaction, then sent to SQS.
 | `ord-<id>-review-<n>` / `-revision-<n>` / `-payment-<n>` | One-time `at(...)`, deletes itself | `timer` |
 | `sync-<connectorId>` | `rate(<interval_min> minutes)` with the handler skipping outside open hours | `sync` |
 | `outbox-sweep` | `cron(0/15 2-16 * * ? *)` UTC (07:30–22:00 Colombo) | `worker` (direct invoke with `{"type":"outbox.sweep"}`) |
-| `stats-rollup` | `cron(45 18 * * ? *)` UTC (00:15 Colombo) | `worker` — closes yesterday's stats |
+| `stats-rollup` | `cron(45 18 * * ? *)` UTC (00:15 Colombo) | `worker` — deletes what is past its retention (docs/05 section 7). The day's numbers need no closing: each event is added once. |
 
 **Neon rule:** nothing wakes the database more often than every 10 minutes when no one is using the site.
 

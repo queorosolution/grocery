@@ -285,6 +285,13 @@ Inside one `db.Tx`:
 - **Channels:** `sms` is a generic https JSON adapter (key in SSM `sms/api-key`, no redirects, errors carry no provider body). `walink` only builds a `wa.me` link. Outside `prod` the log channel is used. The WhatsApp Cloud API is phase 2.
 - **Template safety:** `{domain}` and `{id}` slots are strict (error, never cut); other slots lose control characters and `{}:/@` and are cut at a per-slot limit; the text is at most 160 characters. `PLATFORM_DOMAIN` is at most 20 characters.
 
+**Built in P26 (`internal/stats`):**
+- **Consumers:** `stats.Service.Register` adds one consumer per followed event (`stats.<type>`). Each is a pure `rule` (event + `order.StatFacts` + time → `Sums`), then one upsert (`add`) into the shop's row of the Colombo day of the event. The dispatcher's claim makes an event count once.
+- **What a row holds:** `order.submitted` → submitted; `order.paid` → paid, GMV (`total_cents`), shop items (items less margin), platform income (margin + service fee), discount; `order.delivered` → delivered; `order.rejected` / `expired` / `cancelled` / `cancelled_refund` → their counters (a refund-cancel counts as cancelled); `order.approved` / `revised` / `rejected` → review time, only when the move starts in `SUBMITTED`; `order.status_changed` to `PACKED` → pick time. GMV is gross: refunds are in the ledger, not in the stats.
+- **Reads:** `ShopDashboard` and `AdminDashboard` read `shop_daily_stats` for the range, plus small reads the owning modules expose (`order.QueueCounts`, `order.TopProducts`, `finance.Report`, `finance.Balance`, `notify.SentBetween`, `payment.FailedBetween`, `connector.HealthNow`). `full` money numbers need `dashboard.shop_full`, checked from the role of the scope. The admin's ledger split is one date-bounded aggregate over all shops (there is no time-only index on the ledger); it is for the admin's screen only.
+- **Nightly job (`stats.rollup`):** deletes sessions (30 days after expiry or revoke), `otp_codes` and `rate_counters` (7 days), `connector_runs` (90 days) and `notifications` (1 year). `processed_events` and `idempotency_keys` are pruned by the outbox sweep. Finance data and the stats are never deleted.
+- **Shared:** `clock.ParseDay` reads a Colombo date (the notify usage report uses it; older copies in `order`, `finance` and `delivery` still parse their own).
+
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 
 **Order codes:** `<SHOPPREFIX>-<6 chars>` from Crockford base32, e.g. `KS-7Q2M9X`. Prefix from shop slug (2 letters). Unique index retries once on clash.
