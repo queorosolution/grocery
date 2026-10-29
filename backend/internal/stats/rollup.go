@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"gp/internal/shared/clock"
 	"gp/internal/shared/db"
 )
@@ -18,18 +20,28 @@ const (
 	keepNotifications = 365 * 24 * time.Hour
 )
 
-// retention is one clean-up: a name for the log, how long the rows stay, and a
-// delete that takes the cut-off time as $1.
+// retention is one clean-up: a name for the log, how long the rows stay, and the
+// delete, written out so its text is fixed. The cut-off time is $1.
 var retention = []struct {
 	name string
 	keep time.Duration
-	sql  string
+	run  func(ctx context.Context, tx *db.Tx, cutoff time.Time) (pgconn.CommandTag, error)
 }{
-	{"sessions", keepSessions, `DELETE FROM sessions WHERE expires_at < $1 OR revoked_at < $1`},
-	{"otp_codes", keepShort, `DELETE FROM otp_codes WHERE created_at < $1`},
-	{"rate_counters", keepShort, `DELETE FROM rate_counters WHERE window_start < $1`},
-	{"connector_runs", keepConnectorRuns, `DELETE FROM connector_runs WHERE started_at < $1`},
-	{"notifications", keepNotifications, `DELETE FROM notifications WHERE created_at < $1`},
+	{"sessions", keepSessions, func(ctx context.Context, tx *db.Tx, cutoff time.Time) (pgconn.CommandTag, error) {
+		return tx.Exec(ctx, `DELETE FROM sessions WHERE expires_at < $1 OR revoked_at < $1`, cutoff)
+	}},
+	{"otp_codes", keepShort, func(ctx context.Context, tx *db.Tx, cutoff time.Time) (pgconn.CommandTag, error) {
+		return tx.Exec(ctx, `DELETE FROM otp_codes WHERE created_at < $1`, cutoff)
+	}},
+	{"rate_counters", keepShort, func(ctx context.Context, tx *db.Tx, cutoff time.Time) (pgconn.CommandTag, error) {
+		return tx.Exec(ctx, `DELETE FROM rate_counters WHERE window_start < $1`, cutoff)
+	}},
+	{"connector_runs", keepConnectorRuns, func(ctx context.Context, tx *db.Tx, cutoff time.Time) (pgconn.CommandTag, error) {
+		return tx.Exec(ctx, `DELETE FROM connector_runs WHERE started_at < $1`, cutoff)
+	}},
+	{"notifications", keepNotifications, func(ctx context.Context, tx *db.Tx, cutoff time.Time) (pgconn.CommandTag, error) {
+		return tx.Exec(ctx, `DELETE FROM notifications WHERE created_at < $1`, cutoff)
+	}},
 }
 
 // Rollup is the nightly job (docs/04 section 6): one database wake per day. The
@@ -40,7 +52,7 @@ func (s *Service) Rollup(ctx context.Context) (map[string]int64, error) {
 	out := make(map[string]int64, len(retention))
 	err := s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
 		for _, r := range retention {
-			tag, err := tx.Exec(ctx, r.sql, clock.Now().Add(-r.keep))
+			tag, err := r.run(ctx, tx, clock.Now().Add(-r.keep))
 			if err != nil {
 				return err
 			}
