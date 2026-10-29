@@ -223,6 +223,14 @@ flowchart TD
 3. Return page shows "Confirming payment…" and polls the order until `PAID` (or 3 min → "We'll update you by SMS").
 4. Manual: show bank details card with copy buttons and the order code as reference.
 
+### Driver screen (`/console/driver`)
+
+- One list for today (Colombo date), grouped by slot; courier orders sit in their own group. It is asked again every 20 s while the page is visible.
+- Each card has a call link (digits and `+` only, helper `lib/contact.ts`) and a map link from the pin. "Enter code" and "Couldn't deliver" show only while the status is `OUT_FOR_DELIVERY`.
+- Code sheet: one big numeric box, 4 digits, other characters dropped. The API does not send a try count, so the screen counts the wrong codes it saw (kept per card, not per sheet) and shows "N tries left". After 5, or on `423 DELIVERY_CODE_LOCKED`, the box is off and the text says to ask the shop or admin. The server stays the judge; a reload forgets the count.
+- "Couldn't deliver" needs a note of 3 to 300 characters. A stale or missing order (`409`, `404`) asks for the list again.
+- The numbers at the bottom are `GET /driver/stats` for today and for the last 7 days.
+
 ## 9. Frontend security rules
 
 | Rule | How |
