@@ -62,6 +62,19 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPatch, "/admin/payment-accounts/{id}", Admin, d.Shop.UpdateAccount},
 		)
 	}
+	if d.Delivery != nil {
+		table = append(table,
+			Route{nethttp.MethodGet, "/shops/{slug}/slots", Public, d.Delivery.PublicSlots},
+			Route{nethttp.MethodGet, "/admin/fee-rules", Admin, d.Delivery.Rules},
+			Route{nethttp.MethodPut, "/admin/fee-rules/default", Admin, d.Delivery.SetDefaultRule},
+			Route{nethttp.MethodPut, "/admin/fee-rules/shops/{id}", Admin, d.Delivery.SetShopRule},
+			Route{nethttp.MethodPost, "/admin/fee-rules/preview", Admin, d.Delivery.Preview},
+			Route{nethttp.MethodGet, "/admin/shops/{id}/slots", Admin, d.Delivery.AdminSlots},
+			Route{nethttp.MethodPost, "/admin/shops/{id}/slots", Admin, d.Delivery.CreateSlots},
+			Route{nethttp.MethodPost, "/admin/shops/{id}/slots/copy-week", Admin, d.Delivery.CopyWeek},
+			Route{nethttp.MethodPatch, "/admin/slots/{id}", Admin, d.Delivery.UpdateSlot},
+		)
+	}
 	if d.Audit != nil {
 		table = append(table, Route{nethttp.MethodGet, "/admin/audit", Admin, d.Audit.List})
 	}

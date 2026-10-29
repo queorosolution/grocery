@@ -7,6 +7,7 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/delivery"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
 	"gp/internal/shared/authz"
@@ -28,7 +29,9 @@ type Deps struct {
 	// Team serves the shop team and admin invites. Nil means no such routes.
 	Team *team.Handler
 	// Shop serves shops, settings, hours and payment accounts; Audit the log.
-	Shop         *shop.Handler
+	Shop *shop.Handler
+	// Delivery serves fee rules and delivery slots.
+	Delivery     *delivery.Handler
 	Audit        *audit.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
 	// Memberships loads the caller's roles for admin and perm: routes. Nil

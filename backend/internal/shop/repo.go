@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
@@ -46,7 +45,7 @@ func shopByID(ctx context.Context, tx *db.Tx, id uuid.UUID, lock bool) (Shop, bo
 		q += ` FOR UPDATE`
 	}
 	s, err := scanShop(tx.QueryRow(ctx, q, id))
-	return s, err == nil, ignoreNoRows(err)
+	return s, err == nil, db.IgnoreNoRows(err)
 }
 
 // insertShop creates the profile and its default settings. New shops start as
@@ -122,7 +121,7 @@ func accountScopeOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (accountScope,
 	err := tx.QueryRow(ctx, `SELECT provider, owner_type, shop_id FROM payment_accounts WHERE id = $1`, id).
 		Scan(&a.Provider, &owner, &a.ShopID)
 	a.Platform = owner == enum.PaymentAccountOwnerPlatform
-	return a, err == nil, ignoreNoRows(err)
+	return a, err == nil, db.IgnoreNoRows(err)
 }
 
 // hoursOf returns the weekly hours as the API shows them.
@@ -220,14 +219,14 @@ func listPublic(ctx context.Context, tx *db.Tx) ([]PublicShop, error) {
 	return out, rows.Err()
 }
 
-func ignoreNoRows(err error) error {
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	return err
+func existsShop(ctx context.Context, tx *db.Tx, id uuid.UUID) (bool, error) {
+	var ok bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM shops WHERE id = $1)`, id).Scan(&ok)
+	return ok, err
 }
 
-func isUniqueViolation(err error) bool {
-	var pg *pgconn.PgError
-	return errors.As(err, &pg) && pg.Code == "23505"
+func activeIDBySlug(ctx context.Context, tx *db.Tx, slug string) (uuid.UUID, bool, error) {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `SELECT id FROM shops WHERE slug = $1 AND status = 'ACTIVE'`, slug).Scan(&id)
+	return id, err == nil, db.IgnoreNoRows(err)
 }

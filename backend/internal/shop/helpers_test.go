@@ -3,7 +3,6 @@ package shop_test
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -16,27 +15,14 @@ import (
 
 // fixture is the real API with an admin who passed TOTP.
 type fixture struct {
-	a     *apptest.App
-	admin apptest.Session
+	a *apptest.App
+	apptest.AdminAPI
 }
 
 func newFixture(t *testing.T) fixture {
 	t.Helper()
 	a := apptest.New(t)
-	return fixture{a: a, admin: a.Admin()}
-}
-
-func (f fixture) call(method, path, body string) *httptest.ResponseRecorder {
-	return f.a.Call(method, "/v1"+path, body, f.admin.Cookies()...)
-}
-
-func (f fixture) ok(method, path, body string) *httptest.ResponseRecorder {
-	f.a.T.Helper()
-	w := f.call(method, path, body)
-	if w.Code >= 300 {
-		f.a.T.Fatalf("%s %s = %d %s", method, path, w.Code, w.Body)
-	}
-	return w
+	return fixture{a: a, AdminAPI: a.AsAdmin()}
 }
 
 const newShop = `{"slug":"krishna-super","name":"Krishna Super","phone":"0771234567","addressText":"12 Main Street","lat":6.9271,"lng":79.8612}`
@@ -44,23 +30,11 @@ const newShop = `{"slug":"krishna-super","name":"Krishna Super","phone":"0771234
 // createShop makes a shop and returns its detail.
 func (f fixture) createShop(body string) shop.Detail {
 	f.a.T.Helper()
-	return apptest.Decode[shop.Detail](f.a.T, f.ok(http.MethodPost, "/admin/shops", body))
+	return apptest.Decode[shop.Detail](f.a.T, f.OK(http.MethodPost, "/admin/shops", body))
 }
 
 func (f fixture) shopPath(id uuid.UUID, rest string) string {
 	return "/admin/shops/" + id.String() + rest
-}
-
-type errorBody struct {
-	Error struct {
-		Code   string
-		Fields map[string]string
-	}
-}
-
-func (f fixture) errorOf(w *httptest.ResponseRecorder) errorBody {
-	f.a.T.Helper()
-	return apptest.Decode[errorBody](f.a.T, w)
 }
 
 func jsonOf(t *testing.T, v any) string {
@@ -93,12 +67,12 @@ const allWeek = `{"days":[` +
 func (f fixture) makeReady(slug string) uuid.UUID {
 	f.a.T.Helper()
 	id := f.createShop(strings.Replace(newShop, "krishna-super", slug, 1)).Shop.ID
-	f.ok(http.MethodPatch, f.shopPath(id, ""), `{"status":"ACTIVE"}`)
-	f.ok(http.MethodPut, f.shopPath(id, "/hours"), allWeek)
-	acc := apptest.Decode[shop.Account](f.a.T, f.ok(http.MethodPost, "/admin/payment-accounts", `{"ownerType":"PLATFORM","provider":"MANUAL"}`))
+	f.OK(http.MethodPatch, f.shopPath(id, ""), `{"status":"ACTIVE"}`)
+	f.OK(http.MethodPut, f.shopPath(id, "/hours"), allWeek)
+	acc := apptest.Decode[shop.Account](f.a.T, f.OK(http.MethodPost, "/admin/payment-accounts", `{"ownerType":"PLATFORM","provider":"MANUAL"}`))
 	s := validSettings()
 	s.PaymentAccountID = &acc.ID
-	f.ok(http.MethodPut, f.shopPath(id, "/settings"), jsonOf(f.a.T, s))
+	f.OK(http.MethodPut, f.shopPath(id, "/settings"), jsonOf(f.a.T, s))
 	f.a.Exec(`INSERT INTO slots (shop_id, starts_at, ends_at, cutoff_at, capacity)
 		VALUES ($1, now() + interval '1 day', now() + interval '1 day 2 hours', now() + interval '20 hours', 10)`, id)
 	return id

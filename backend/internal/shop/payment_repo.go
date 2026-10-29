@@ -50,7 +50,7 @@ func accountForUpdate(ctx context.Context, tx *db.Tx, id uuid.UUID) (Account, *s
 	var ref *string
 	a, err := scanAccount(tx.QueryRow(ctx, `SELECT `+accountColumns+` FROM payment_accounts WHERE id = $1 FOR UPDATE`, id))
 	if err != nil {
-		return Account{}, nil, false, ignoreNoRows(err)
+		return Account{}, nil, false, db.IgnoreNoRows(err)
 	}
 	err = tx.QueryRow(ctx, `SELECT secret_ref FROM payment_accounts WHERE id = $1`, id).Scan(&ref)
 	return a, ref, true, err

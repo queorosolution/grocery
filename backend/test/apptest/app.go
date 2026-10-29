@@ -19,6 +19,7 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/delivery"
 	apihttp "gp/internal/http"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/config"
@@ -80,10 +81,12 @@ func New(t *testing.T) *App {
 	}}
 	teamSvc := team.NewService(env.DB)
 	svc := auth.NewService(cfg, env.DB, sec, auth.NewOIDCVerifier(oidc.Issuer, ClientID), teamSvc)
+	shopSvc := shop.NewService(env.DB, sec, true)
 	deps := apihttp.Deps{
 		Config: cfg, Auth: auth.NewHandler(svc, cfg), Team: team.NewHandler(teamSvc), Memberships: teamSvc,
-		Shop:  shop.NewHandler(shop.NewService(env.DB, sec, true)),
-		Audit: audit.NewHandler(env.DB),
+		Shop:     shop.NewHandler(shopSvc),
+		Delivery: delivery.NewHandler(delivery.NewService(env.DB, shopSvc)),
+		Audit:    audit.NewHandler(env.DB),
 	}
 	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec}
 }
