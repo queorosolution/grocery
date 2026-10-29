@@ -65,10 +65,10 @@ func (s *Service) prepare(ctx context.Context, shopID uuid.UUID, cartID string, 
 // price works the bill out inside tx, which the caller opened in the customer's
 // scope. The products and the fee rule are shop data; the address and the
 // contact are the caller's own.
-func (s *Service) price(ctx context.Context, tx *db.Tx, userID, addressID uuid.UUID, p prepared) (priced, error) {
+func (s *Service) price(ctx context.Context, tx *db.Tx, userID uuid.UUID, in QuoteInput, p prepared) (priced, error) {
 	var out priced
 	var err error
-	if out.address, err = s.users.AddressFor(ctx, tx, userID, addressID); err != nil {
+	if out.address, err = s.where(ctx, tx, userID, in); err != nil {
 		return out, err
 	}
 	if out.contact, err = s.users.ContactOf(ctx, tx, userID); err != nil {

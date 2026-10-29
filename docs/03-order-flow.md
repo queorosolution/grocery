@@ -138,7 +138,7 @@ sequenceDiagram
   C->>W: Add items
   W->>CS: POST /v1/carts/{id}/lines (public key)
   C->>W: Checkout
-  W->>API: POST /v1/bills/quote {cartId, addressId, slotId}
+  W->>API: POST /v1/bills/quote {cartId, addressId or destination, slotId}
   API->>CS: GET /v1/carts/{id} (platform key + tenant)
   API->>DB: Load shop products, settings, fee rule, slot
   API-->>W: Bill preview (server prices)

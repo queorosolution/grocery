@@ -123,6 +123,7 @@
 | FR-BILL-07 | A revision shows the customer old vs new. The customer must accept before paying. | M |
 | FR-BILL-08 | Timers: review (default 15 min), revision answer (15 min), payment (30 min). On timeout → `EXPIRED`, slot released. | M |
 | FR-BILL-09 | Optimistic locking: every order update checks `version`. Conflict → `409 STALE_ORDER`. | M |
+| FR-BILL-10 | A customer can send an order to a one-time destination (pin, line, landmark) instead of a saved address. It is not saved to the address book. The distance rule and the fee use its pin. | M |
 
 ## F9 — Slots and delivery fee
 

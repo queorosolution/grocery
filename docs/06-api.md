@@ -190,6 +190,8 @@ No database writes. The quantities are the ones in the cart; the body only choos
 { "shopId": "…", "cartId": "crt_…", "addressId": "…", "slotId": "…optional…", "lines": [ { "itemId": "…shopProductId…", "subPref": "SIMILAR" } ] }
 ```
 
+**Where to deliver.** Send `addressId` (a saved address) **or** `destination` (a place for this order only), never both and never neither. A destination is `{ "label"?: "…", "line1": "…", "landmark"?: "…", "lat": 6.93, "lng": 79.87 }` and follows the same rules as a saved address (label up to 30 characters, `line1` 3 to 160, pin in range). It is not saved to the address book. The label is "Other place" when left out. A wrong destination field is `400` with the reason under `destination.<field>`; both or neither is `400` on `addressId` or `destination`. The distance rule and the fee work from the pin as for any address. The order keeps a copy of the place (FR-BILL-10). `POST /bills` takes the same field.
+
 Response (also the shape of a submitted order's money part):
 
 ```json

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"unicode/utf8"
 
@@ -173,4 +174,36 @@ func (s *Service) DeleteAddress(ctx context.Context, scope db.Scope, id uuid.UUI
 func (s *Service) AddressFor(ctx context.Context, tx *db.Tx, userID, id uuid.UUID) (Address, error) {
 	a, found, err := addressOf(ctx, tx, userID, id)
 	return a, apperr.NotFoundUnless(err, found)
+}
+
+// otherPlaceLabel names a one-time destination that came without a label.
+const otherPlaceLabel = "Other place"
+
+// Destination is a place for one order only. It is never saved to the address book.
+type Destination struct {
+	Label    *string `json:"label"`
+	Line1    string  `json:"line1"`
+	Landmark *string `json:"landmark"`
+	Lat      float64 `json:"lat"`
+	Lng      float64 `json:"lng"`
+}
+
+// Address cleans and checks the destination by the same rules as a saved address.
+// Reasons are named "destination.<field>" so a form can place them.
+func (d Destination) Address() (Address, error) {
+	a := Address{Label: otherPlaceLabel, Line1: d.Line1, Landmark: d.Landmark, Lat: d.Lat, Lng: d.Lng}
+	if d.Label != nil && strings.TrimSpace(*d.Label) != "" {
+		a.Label = *d.Label
+	}
+	a.clean()
+	err := a.validate()
+	var ae *apperr.Error
+	if !errors.As(err, &ae) {
+		return a, err
+	}
+	fields := make(map[string]string, len(ae.Fields))
+	for k, v := range ae.Fields {
+		fields["destination."+k] = v
+	}
+	return Address{}, apperr.Validation(fields)
 }
