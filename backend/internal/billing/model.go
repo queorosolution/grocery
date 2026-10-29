@@ -99,6 +99,8 @@ type BillLine struct {
 	// ShopPriceCents is what the shop charges for one pack. It feeds the ledger
 	// (platform margin) and is not part of the customer's view.
 	ShopPriceCents money.Cents `json:"-"`
+	// WeightG is the pack weight, stored on the order line.
+	WeightG int `json:"-"`
 }
 
 // Excluded is a requested line that is not in the bill.
@@ -142,4 +144,8 @@ type Bill struct {
 	// MarginCents is the platform margin of the items (online price minus shop
 	// price). It is kept for the ledger and for the coupon cap, not shown.
 	MarginCents money.Cents `json:"-"`
+	// DistanceM and WeightG are the straight-line distance and the pack weight the
+	// fee was worked out from, stored on the order.
+	DistanceM int `json:"-"`
+	WeightG   int `json:"-"`
 }

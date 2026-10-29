@@ -79,7 +79,7 @@ func (p ProductSnapshot) price(l LineInput, pref enum.SubstitutionPref) (BillLin
 	return BillLine{
 		ShopProductID: p.ID, Name: p.Name, Unit: p.Unit, Qty: l.Qty, UnitPriceCents: p.OnlinePriceCents, LineCents: total,
 		Status: StatusOK, PriceChanged: l.CartUnitPrice != nil && *l.CartUnitPrice != p.OnlinePriceCents,
-		SubPref: pref, ShopPriceCents: p.ShopPriceCents,
+		SubPref: pref, ShopPriceCents: p.ShopPriceCents, WeightG: p.WeightG,
 	}, nil
 }
 
@@ -96,8 +96,9 @@ func prefOf(p enum.SubstitutionPref) (enum.SubstitutionPref, error) {
 
 // finish adds the fees, the discount and the checks to a priced basket.
 func (b Bill) finish(in BillInput, items, margin money.Cents, weightG int) (Bill, error) {
-	b.MarginCents = margin
+	b.MarginCents, b.WeightG = margin, weightG
 	distanceM := geo.HaversineM(in.Shop.Location, in.Address)
+	b.DistanceM = distanceM
 	inRange := in.FeeRule.InRange(distanceM)
 	b.Delivery = Delivery{DistanceKm: delivery.Dec2((distanceM + 5) / 10), WeightKg: delivery.Dec2((weightG + 9) / 10), FeeRule: in.FeeRuleSource}
 	b.Checks = Checks{

@@ -94,6 +94,9 @@ func Routes(d Deps) []Route {
 	if d.Order != nil {
 		table = append(table,
 			Route{nethttp.MethodPost, "/bills/quote", User, d.Order.Quote},
+			Route{nethttp.MethodPost, "/bills", User, d.Order.Submit},
+			Route{nethttp.MethodGet, "/orders", User, d.Order.List},
+			Route{nethttp.MethodGet, "/orders/{id}", User, d.Order.Get},
 		)
 	}
 	if d.Catalog != nil {

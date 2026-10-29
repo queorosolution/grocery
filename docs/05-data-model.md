@@ -167,7 +167,7 @@ erDiagram
 | `shop_daily_stats` | Dashboard numbers | worker | One row per shop per Colombo day. |
 | `audit_log` | Who changed what | all modules | Append-only. Shops can write, only admin can read. |
 | `outbox`, `processed_events` | Reliable events | all / worker | See `07-backend-design.md`. |
-| `idempotency_keys` | Safe retries of POSTs | api middleware | Kept 24 h. |
+| `idempotency_keys` | Safe retries of POSTs | api (`shared/idem`): claimed in the same transaction as the work | Answers retries for 24 h; the sweep deletes rows older than 7 days. |
 
 ## 4. Ledger rules
 

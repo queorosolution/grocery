@@ -211,7 +211,12 @@ Notes:
 
 ### `POST /bills` — user, `Idempotency-Key` required
 Body: quote body + `"slotId"` (required for `SLOT`), `"note"`.
-- Re-runs every check (`FR-BILL-03`). Returns `201` with the **order detail** (below).
+- Re-runs every check (`FR-BILL-03`) and prices again from the database and a fresh read of the cart. Returns `201` with the **order detail** (below). The `Idempotency-Key` header is required (16–64 characters of `A-Z a-z 0-9 _ -`); a missing or badly shaped key is `400` with `fields["Idempotency-Key"]`.
+- The key is saved in the same transaction as the order, so a refused bill leaves no key and may be sent again. A retry with the same key and body gets the stored order back (`201`), even though the cart is gone by then; the same key with another body is `409 IDEMPOTENCY_MISMATCH`. Keys belong to one customer and are kept 24 hours.
+- `slotId` is required when the shop delivers by `SLOT` and refused (`400`, `fields.slotId = "not_used"`) when it does not. `note` is at most 300 characters.
+- A cart line that is not for sale makes the whole bill `ITEM_UNAVAILABLE`: the customer fixes the cart and sends again. The quote shows such lines as `excluded`.
+- Limits: fewer than 3 orders in `SUBMITTED`, `REVISED` or `AWAITING_PAYMENT` (`TOO_MANY_OPEN_ORDERS`) and 10 bills an hour; every attempt counts toward the hour, also a refused one (`RATE_LIMITED`).
+- After the commit the cart is deleted; if that fails the cart service expires it.
 - Errors: `PHONE_NOT_VERIFIED`, `TOO_MANY_OPEN_ORDERS`, `SHOP_CLOSED`, `SHOP_NOT_READY`, `OUT_OF_RANGE`, `BELOW_MIN_ORDER`, `SLOT_FULL`, `SLOT_CLOSED`, `ITEM_UNAVAILABLE`, `QTY_LIMIT`, `CART_EMPTY`, `CART_WRONG_SHOP`, `CART_UNAVAILABLE`, `RATE_LIMITED`.
 
 ### Order detail object
@@ -235,6 +240,8 @@ Returned by every order endpoint (customer, console, driver), with fields hidden
 }
 ```
 
+- Another customer's order, a missing id and a malformed id are all `404`. `lines` are the current revision; earlier revisions are in `previousLines`. `expiresAt` is when the wait the order is in (review, revision or payment) runs out; it is left out of final statuses. `deliveryCode` is not built yet (it comes with the fulfilment prompt).
+- The action names are code constants in `internal/order/actions.go` (they are not in `contracts/enums.json` yet).
 - `allowedActions` is computed **on the server** from the transition table + viewer. The UI shows buttons only from this list. Values: `CANCEL`, `ACCEPT_REVISION`, `APPLY_COUPON`, `REMOVE_COUPON`, `PAY`, `REPORT_PROBLEM`, console: `APPROVE`, `REVISE`, `REJECT`, `START_PICKING`, `MARK_PACKED`, `ASSIGN_DRIVER`, `SEND_OUT`, `RETRY_DELIVERY`, `REQUEST_CANCEL`, `REQUEST_PARTIAL_REFUND`, driver: `COMPLETE`, `FAIL`.
 - `deliveryCode` is present **only** for the customer and only in `OUT_FOR_DELIVERY`.
 - Console viewers also get `customer: { name, phoneMasked }` and, for picking, `phone` (full) — needed to call.
@@ -242,7 +249,7 @@ Returned by every order endpoint (customer, console, driver), with fields hidden
 
 | Method | Path | Auth | Body | Notes |
 |---|---|---|---|---|
-| `GET` | `/orders?cursor=` | user | — | Own orders, newest first, summary objects |
+| `GET` | `/orders?limit=&cursor=` | user | — | Own orders, newest first, 20 per page (`limit` up to 50) → `{ "data": [ { id, code, status, shop: { slug, name }, totalCents, itemCount, createdAt } ], "nextCursor": "…" \| null }`. Never lists another customer's orders. |
 | `GET` | `/orders/{id}` | user (own) | — | Order detail |
 | `POST` | `/orders/{id}/accept-revision` | user (own) | `{ "version": 3, "revisionNo": 1 }` | T07 |
 | `POST` | `/orders/{id}/cancel` | user (own) | `{ "version": 3 }` | T06 / T09 / T12 |

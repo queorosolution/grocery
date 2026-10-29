@@ -21,6 +21,11 @@ func (c Client) Call(method, path, body string) *httptest.ResponseRecorder {
 	return c.App.Call(method, "/v1"+path, body, c.Session.Cookies()...)
 }
 
+// CallWith is Call with extra request headers.
+func (c Client) CallWith(method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
+	return c.App.CallWith(DefaultIP, method, "/v1"+path, body, headers, c.Session.Cookies()...)
+}
+
 // OK calls and fails the test on any answer of 300 or more.
 func (c Client) OK(method, path, body string) *httptest.ResponseRecorder {
 	c.T.Helper()

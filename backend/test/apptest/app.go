@@ -84,6 +84,8 @@ type App struct {
 	// Connector is the connector service the API uses; tests call Run on it as the
 	// sync function would. Schedules and Invoker are the fakes it was given.
 	Connector *connector.Service
+	// Orders is the order service the API uses, for tests that move orders without a route yet.
+	Orders    *order.Service
 	Schedules *fakes.Schedules
 	Invoker   *fakes.Invoker
 	ips       int
@@ -125,6 +127,7 @@ func New(t *testing.T) *App {
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
+	orderSvc := order.NewService(env.DB, shopSvc, deliverySvc, userSvc, catalogSvc, carts)
 	deps := apihttp.Deps{
 		Config: cfg, Auth: auth.NewHandler(svc, cfg), Team: team.NewHandler(teamSvc), Memberships: teamSvc,
 		Shop:      shop.NewHandler(shopSvc),
@@ -133,13 +136,13 @@ func New(t *testing.T) *App {
 		Catalog:   catalog.NewHandler(catalogSvc),
 		Pricing:   pricing.NewHandler(pricingSvc),
 		Upload:    upload.NewHandler(uploadSvc, teamSvc),
-		Order:     order.NewHandler(order.NewService(env.DB, shopSvc, deliverySvc, userSvc, catalogSvc, carts)),
+		Order:     order.NewHandler(orderSvc),
 		Connector: connectorHandler,
 		Audit:     audit.NewHandler(env.DB),
 		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{"POST " + apihttp.Base + apihttp.TriggerPattern: connectorHandler.VerifyTrigger}),
 	}
 	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg,
-		Connector: connectorSvc, Schedules: schedules, Invoker: invoker}
+		Connector: connectorSvc, Orders: orderSvc, Schedules: schedules, Invoker: invoker}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.
@@ -148,7 +151,15 @@ func (a *App) Call(method, path, body string, cookies ...*http.Cookie) *httptest
 }
 
 func (a *App) CallFrom(ip, method, path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+	return a.CallWith(ip, method, path, body, nil, cookies...)
+}
+
+// CallWith is CallFrom with extra request headers (for example Idempotency-Key).
+func (a *App) CallWith(ip, method, path, body string, headers map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	for k, v := range headers {
+		r.Header.Set(k, v)
+	}
 	r.Header.Set("Origin", WebOrigin)
 	r.Header.Set("X-Requested-With", "gp-web")
 	r.Header.Set("CF-Connecting-IP", ip)

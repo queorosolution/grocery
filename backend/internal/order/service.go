@@ -19,26 +19,30 @@ import (
 
 type Shops interface {
 	OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now time.Time) (shop.OrderFacts, error)
+	TimeoutsOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (shop.Timeouts, error)
 }
 
 type Delivery interface {
 	RuleFor(ctx context.Context, tx *db.Tx, shopID uuid.UUID) (delivery.RuleRow, error)
 	OpenSlots(ctx context.Context, tx *db.Tx, shopID uuid.UUID, now time.Time) ([]delivery.PublicSlot, error)
 	CheckSlot(ctx context.Context, tx *db.Tx, shopID, slotID uuid.UUID, now time.Time) error
+	BookSlot(ctx context.Context, tx *db.Tx, shopID, slotID uuid.UUID, now time.Time) error
+	ReleaseSlot(ctx context.Context, tx *db.Tx, slotID uuid.UUID) error
 }
 
 type Users interface {
 	AddressFor(ctx context.Context, tx *db.Tx, userID, id uuid.UUID) (user.Address, error)
-	PhoneVerified(ctx context.Context, tx *db.Tx, userID uuid.UUID) (bool, error)
+	ContactOf(ctx context.Context, tx *db.Tx, userID uuid.UUID) (user.Contact, error)
 }
 
 type Products interface {
 	BillProducts(ctx context.Context, tx *db.Tx, shopID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]billing.ProductSnapshot, error)
 }
 
-// Carts reads a shopper's cart from the cart service. *cartclient.Client is the real one.
+// Carts reads and deletes a shopper's cart in the cart service. *cartclient.Client is the real one.
 type Carts interface {
 	GetCart(ctx context.Context, tenantID, cartID string) (cartclient.Cart, error)
+	DeleteCart(ctx context.Context, tenantID, cartID string) error
 }
 
 type Service struct {

@@ -8,6 +8,7 @@ import (
 
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/db"
+	"gp/internal/shared/enum"
 	"gp/internal/shared/geo"
 )
 
@@ -56,21 +57,28 @@ func (s *Service) MarkupBP(ctx context.Context, tx *db.Tx, id uuid.UUID) (bp int
 
 // OrderFacts is what the bill builder reads about a shop.
 type OrderFacts struct {
+	Slug                   string // the order code prefix comes from it
 	Location               geo.Point
 	MinOrderCents          int64
 	MinPlatformMarginCents int64
 	MaxLines               int
 	// CartTenant is empty while the shop's cart is not enabled.
 	CartTenant string
-	// Open is true when the shop is accepting orders now (CanTakeOrders would pass).
-	Open bool
+	// DeliveryType and PaymentProvider are copied onto an order when it is submitted.
+	DeliveryType    enum.DeliveryType
+	PaymentProvider enum.PaymentProvider
+	// Verdict is CanOrder (empty) when the shop is accepting orders now, else why not.
+	Verdict Verdict
 }
+
+// Open is true when CanTakeOrders would pass.
+func (f OrderFacts) Open() bool { return f.Verdict == CanOrder }
 
 // OrderFacts gathers them inside the caller's transaction. A shop that is not
 // ACTIVE is not found, so a customer cannot tell a draft shop from a missing one.
 func (s *Service) OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now time.Time) (OrderFacts, error) {
 	var f OrderFacts
-	err := tx.QueryRow(ctx, `SELECT lat, lng FROM shops WHERE id = $1 AND status = 'ACTIVE'`, id).Scan(&f.Location.Lat, &f.Location.Lng)
+	err := tx.QueryRow(ctx, `SELECT slug, lat, lng FROM shops WHERE id = $1 AND status = 'ACTIVE'`, id).Scan(&f.Slug, &f.Location.Lat, &f.Location.Lng)
 	if err != nil {
 		return f, apperr.NotFoundUnless(db.IgnoreNoRows(err), false)
 	}
@@ -79,6 +87,7 @@ func (s *Service) OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now t
 		return f, err
 	}
 	f.MinOrderCents, f.MinPlatformMarginCents, f.MaxLines = set.MinOrderCents, set.MinPlatformMarginCents, set.MaxLines
+	f.DeliveryType, f.PaymentProvider = set.DeliveryType, set.PaymentProvider
 	if set.CartTenantID != nil {
 		f.CartTenant = *set.CartTenantID
 	}
@@ -86,6 +95,21 @@ func (s *Service) OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now t
 	if err != nil || !found {
 		return f, apperr.NotFoundUnless(err, found)
 	}
-	f.Open = snap.canTakeOrders(now) == CanOrder
+	f.Verdict = snap.canTakeOrders(now)
 	return f, nil
+}
+
+// Timeouts are how long each wait of an order lasts, from the shop's settings.
+type Timeouts struct {
+	Review, Revision, Payment time.Duration
+}
+
+// TimeoutsOf reads them for the order module's timers and expiry times.
+func (s *Service) TimeoutsOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (Timeouts, error) {
+	set, err := settingsOf(ctx, tx, id)
+	if err != nil {
+		return Timeouts{}, err
+	}
+	minutes := func(m int) time.Duration { return time.Duration(m) * time.Minute }
+	return Timeouts{Review: minutes(set.ReviewTimeoutMin), Revision: minutes(set.RevisionTimeoutMin), Payment: minutes(set.PaymentTimeoutMin)}, nil
 }

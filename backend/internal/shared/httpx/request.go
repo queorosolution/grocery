@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"gp/internal/shared/apperr"
@@ -62,4 +63,17 @@ func decodeError(err error) error {
 	default:
 		return apperr.Validation(map[string]string{"body": "invalid"})
 	}
+}
+
+// PageLimit reads ?limit=: def when it is left out, VALIDATION_ERROR when it is
+// not a number. The range is the list's own business.
+func PageLimit(raw string, def int) (int, error) {
+	if raw == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, apperr.Validation(map[string]string{"limit": "invalid"})
+	}
+	return n, nil
 }
