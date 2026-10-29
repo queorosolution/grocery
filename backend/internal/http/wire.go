@@ -7,6 +7,8 @@ import (
 	"gp/internal/audit"
 	"gp/internal/auth"
 	"gp/internal/delivery"
+	"gp/internal/events"
+	"gp/internal/events/eventsaws"
 	"gp/internal/notify"
 	"gp/internal/notify/logchannel"
 	"gp/internal/shared/config"
@@ -25,6 +27,16 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	database, err := db.Connect(ctx, cfg, sec)
 	if err != nil {
 		return Deps{}, nil, fmt.Errorf("wire: %w", err)
+	}
+	// Committed events are sent to the queue right away; without a queue (local
+	// runs) they wait for the outbox sweep.
+	queue, sched, err := eventsaws.New(ctx, cfg)
+	if err != nil {
+		database.Close()
+		return Deps{}, nil, fmt.Errorf("wire: %w", err)
+	}
+	if queue != nil {
+		events.SetPublisher(events.NewPublisher(database, queue, sched))
 	}
 	teamSvc := team.NewService(database)
 	shopSvc := shop.NewService(database, sec, cfg.FeatureManualPay)

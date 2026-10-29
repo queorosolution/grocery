@@ -1,26 +1,45 @@
 // Command worker handles queue messages and the direct schedule invokes
-// (outbox sweep, stats roll-up). Stub: the real jobs arrive in later steps.
+// (outbox sweep, stats roll-up). This file only wires things together.
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
+	"os"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+
+	"gp/internal/shared/config"
+	"gp/internal/shared/logx"
+	"gp/internal/shared/secrets"
+	"gp/internal/worker"
 )
 
 func main() {
-	lambda.Start(handle)
-}
+	cfg, err := config.Load()
+	if err != nil {
+		// Config errors name variables, never values.
+		slog.Error("invalid configuration", "error", err.Error())
+		os.Exit(1)
+	}
+	logx.SetDefault(logx.New(cfg.LogLevel, os.Stdout))
 
-// handle takes the raw event because the queue and the scheduler send different
-// shapes. It logs only a count, never the event. Nothing writes to the queue yet,
-// so acknowledging every message here loses no work.
-func handle(_ context.Context, raw json.RawMessage) (events.SQSEventResponse, error) {
-	var batch events.SQSEvent
-	_ = json.Unmarshal(raw, &batch)
-	slog.Info("worker stub", "records", len(batch.Records))
-	return events.SQSEventResponse{}, nil
+	ctx := context.Background()
+	ssm, err := secrets.NewSSM(ctx)
+	if err != nil {
+		slog.Error("secret store unavailable", "error", err.Error())
+		os.Exit(1)
+	}
+	sec, err := secrets.New(cfg, ssm, os.Getenv)
+	if err != nil {
+		slog.Error("secret store unavailable", "error", err.Error())
+		os.Exit(1)
+	}
+	w, closeAll, err := worker.Wire(ctx, cfg, sec)
+	if err != nil {
+		slog.Error("start-up failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer closeAll()
+	lambda.Start(w.Handle)
 }
