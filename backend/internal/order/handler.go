@@ -101,3 +101,19 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 		return h.svc.Review(r.Context(), sc, id, in)
 	})
 }
+
+// ApplyCoupon handles POST /orders/{id}/coupon.
+func (h *Handler) ApplyCoupon(w http.ResponseWriter, r *http.Request) {
+	var in CouponInput
+	routex.User(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.ApplyCoupon(r.Context(), sc, id, in)
+	})
+}
+
+// RemoveCoupon handles DELETE /orders/{id}/coupon.
+func (h *Handler) RemoveCoupon(w http.ResponseWriter, r *http.Request) {
+	var in RemoveCouponInput
+	routex.User(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.RemoveCoupon(r.Context(), sc, id, in)
+	})
+}

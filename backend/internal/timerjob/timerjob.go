@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"gp/internal/coupon"
 	"gp/internal/delivery"
 	"gp/internal/events"
 	"gp/internal/events/eventsaws"
@@ -36,8 +37,9 @@ func New(orders Expirer) *Job { return &Job{orders: orders} }
 // Wire builds the timer function's dependencies and returns a function that
 // closes what it opened. An expiry moves an order, so its event goes to the
 // queue after the commit like any other (and to the sweep if that fails). Only
-// the shop and delivery modules are needed: the other order dependencies belong
-// to routes this function does not serve.
+// the shop, delivery and coupon modules are needed (an expiry gives back the
+// place and the coupon): the other order dependencies belong to routes this
+// function does not serve.
 func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Job, func(), error) {
 	database, err := db.Connect(ctx, cfg, sec)
 	if err != nil {
@@ -52,7 +54,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Job, fun
 		events.SetPublisher(events.NewPublisher(database, queue, sched))
 	}
 	shopSvc := shop.NewService(database, sec, cfg.FeatureManualPay)
-	return New(order.NewService(database, shopSvc, delivery.NewService(database, shopSvc), nil, nil, nil)), database.Close, nil
+	orders := order.NewService(database, shopSvc, delivery.NewService(database, shopSvc), nil, nil, nil, coupon.NewService(database))
+	return New(orders), database.Close, nil
 }
 
 // timerEvent is the payload the scheduler sends (docs/07 section 10).

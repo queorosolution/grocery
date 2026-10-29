@@ -119,7 +119,7 @@ func (b Bill) finish(in BillInput, items, margin money.Cents, weightG int) (Bill
 		if err != nil {
 			return Bill{}, err
 		}
-		if t.DiscountCents, err = discount(in, items, income); err != nil {
+		if t.DiscountCents, err = discount(in.Coupon, in.UserCouponUses, in.Now, items, income); err != nil {
 			return Bill{}, err
 		}
 	}

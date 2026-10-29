@@ -8,6 +8,7 @@ import (
 
 	"gp/internal/billing"
 	"gp/internal/cartclient"
+	"gp/internal/coupon"
 	"gp/internal/delivery"
 	"gp/internal/shared/db"
 	"gp/internal/shop"
@@ -46,6 +47,13 @@ type Carts interface {
 	DeleteCart(ctx context.Context, tenantID, cartID string) error
 }
 
+// Coupons reserves and gives back the uses of a coupon for an order, in the
+// order's transaction. *coupon.Service is the real one.
+type Coupons interface {
+	Apply(ctx context.Context, tx *db.Tx, in coupon.ApplyInput, price coupon.Pricer) (coupon.Applied, error)
+	Release(ctx context.Context, tx *db.Tx, orderID uuid.UUID) (bool, error)
+}
+
 type Service struct {
 	db       *db.DB
 	shops    Shops
@@ -53,8 +61,9 @@ type Service struct {
 	users    Users
 	products Products
 	carts    Carts
+	coupons  Coupons
 }
 
-func NewService(d *db.DB, shops Shops, dl Delivery, users Users, products Products, carts Carts) *Service {
-	return &Service{db: d, shops: shops, delivery: dl, users: users, products: products, carts: carts}
+func NewService(d *db.DB, shops Shops, dl Delivery, users Users, products Products, carts Carts, coupons Coupons) *Service {
+	return &Service{db: d, shops: shops, delivery: dl, users: users, products: products, carts: carts, coupons: coupons}
 }
