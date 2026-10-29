@@ -127,3 +127,18 @@ func (h *Handler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		return h.svc.UpdateAccount(r.Context(), sc, id, in)
 	})
 }
+
+// EnableCart handles POST /admin/shops/{id}/cart-tenant.
+func (h *Handler) EnableCart(w http.ResponseWriter, r *http.Request) {
+	routex.Admin[struct{}](w, r, http.StatusOK, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.EnableCart(r.Context(), sc, id)
+	})
+}
+
+// ResyncCart handles POST /admin/shops/{id}/cart-sync.
+func (h *Handler) ResyncCart(w http.ResponseWriter, r *http.Request) {
+	routex.Admin[struct{}](w, r, http.StatusAccepted, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		n, err := h.svc.ResyncCart(r.Context(), sc, id)
+		return map[string]int{"queuedItems": n}, err
+	})
+}

@@ -28,9 +28,13 @@ Every outside system sits behind **one Go package** with a small interface, so t
 | `name` | shop name |
 | `currency` | `LKR` |
 | `allowedOrigins` | `ALLOWED_ORIGINS` (e.g. `https://www.nearshop.lk`, dev origin) |
-| `plan` | a plan whose `maxItems` is **above the shop's product count** (open question Q4) |
+| `plan` | `pro` (a constant in `cartclient`). The plan must allow more items than the shop has products; if it does not, the upload fails with `QUOTA_EXCEEDED` and the DLQ alarm fires (open question Q4) |
 
 Saved in `shop_settings`: `cart_tenant_id`, `cart_public_key`. The secret key is not stored — the core uses the platform key + `X-Tenant-Id`.
+
+- `CART_API_BASE` ends in `/v1`; the admin API is derived from it (`…/admin/v1`). The platform key is read from SSM `cart/platform-key` on every call and never logged. Every call has a 3 s timeout; a network error, a `5xx`, `408` or `429` is retried twice (150 ms, 400 ms). A `4xx` and `QUOTA_EXCEEDED` are not retried. Failures map to `503 CART_UNAVAILABLE`.
+- The cart service is called **between** two database transactions, never inside one. If the tenant was created but the save failed, a repeat finds it again (`409` carries `details.tenantId`; the public key is read from its key list, or created).
+- When the tenant is saved, the same transaction queues a **full price upload** (`catalog.changed` events for every product, 200 ids each).
 
 ### 1.2 Who calls what
 
@@ -46,7 +50,8 @@ Saved in `shop_settings`: `cart_tenant_id`, `cart_public_key`. The secret key is
 ### 1.3 Price sync to the cart
 
 - `catalog.changed` events carry up to 200 `shopProductIds`.
-- Worker loads them and sends `POST /v1/items/batch` in chunks of **25** (the cart service limit).
+- Worker (`catalog.CartSync`, consumer name `cart.prices`) re-reads them and sends `POST /v1/items/batch` in chunks of **25** (the cart service limit). A shop without a cart tenant is skipped. An item the cart service would refuse (name over 120, price over 999,999,999, bad `maxQuantity`) is skipped and counted in the log; the others are sent. A failed upload fails the event, so the queue retries it (uploading an item again is harmless).
+- The catalog API caps a shop price at Rs 5,000,000 (500,000,000 cents) so that, with the largest markup (20%), the customer price stays under the cart service's limit.
 - After every connector run: one event per 200 changed ids.
 - Nightly (`stats-rollup`): no full re-sync by default. Admin can press "Re-sync cart prices" for a shop (sends all items in batches).
 - Remember: the cart price is display only. **The bill always uses Neon prices.**

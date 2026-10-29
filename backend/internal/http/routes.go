@@ -56,6 +56,8 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPut, "/admin/shops/{id}/settings", Admin, d.Shop.PutSettings},
 			Route{nethttp.MethodPut, "/admin/shops/{id}/hours", Admin, d.Shop.PutHours},
 			Route{nethttp.MethodPost, "/admin/shops/{id}/accepting", Admin, d.Shop.Accepting},
+			Route{nethttp.MethodPost, "/admin/shops/{id}/cart-tenant", Admin, d.Shop.EnableCart},
+			Route{nethttp.MethodPost, "/admin/shops/{id}/cart-sync", Admin, d.Shop.ResyncCart},
 			Route{nethttp.MethodGet, "/admin/shops/{id}/readiness", Admin, d.Shop.Readiness},
 			Route{nethttp.MethodGet, "/admin/payment-accounts", Admin, d.Shop.Accounts},
 			Route{nethttp.MethodPost, "/admin/payment-accounts", Admin, d.Shop.CreateAccount},

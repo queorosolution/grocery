@@ -20,6 +20,8 @@ type Service struct {
 	secrets       secrets.Putter
 	manualEnabled bool // FEATURE_MANUAL_PAYMENT
 	repricer      Repricer
+	carts         Carts
+	sync          PriceSyncer
 }
 
 // Repricer recomputes a shop's customer prices. The pricing module implements

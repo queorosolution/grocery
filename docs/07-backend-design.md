@@ -109,7 +109,7 @@ type Scope struct {
 | `notify` | notifications | `Send(ctx, msg)` → provider by channel |
 | `stats` | shop_daily_stats | `Apply(event)`, `ShopDashboard`, `AdminDashboard`, `DriverStats` |
 | `connector` | connectors, connector_runs, sync_issues | `Save`, `Test`, `Tables`, `Columns`, `SetMapping`, `Preview`, `Run`, `ResolveIssue` |
-| `cartclient` | — | `GetCart`, `DeleteCart`, `UpsertItems`, `CreateTenant` |
+| `cartclient` | — | `GetCart`, `DeleteCart`, `UpsertItems`, `EnsureTenant`; `ToAppError` maps its errors to `CART_UNAVAILABLE` |
 | `events` | outbox, processed_events | `Add`, `PublishAfterCommit`, `Sweep`, `Dispatch` |
 | `upload` | — | `Presign` (R2 link signed to content type and length; who may upload is checked in its handler) |
 | `site` | — | `OnRebuild` (worker consumer: coalesce, then call the Pages deploy hook) |
@@ -242,7 +242,7 @@ sequenceDiagram
 - `events.Registry` has a map `type → []Consumer`. Adding a consumer is one `On` line (in `internal/worker/wire.go`). A repeated name or an unknown type panics at start-up.
 - **Exactly-once claim.** `Registry.Dispatch` runs each consumer in its own transaction that first inserts `(event_id, consumer)` into `processed_events`. A duplicate delivery finds the row and skips; a concurrent duplicate waits on the primary key until the first one commits (then skips) or rolls back (then runs). If the consumer fails, the transaction rolls back, the claim disappears, and the queue retries. The consumer gets that transaction, so its database changes and the claim commit together. External calls (SMS, HTTP) cannot be rolled back: keep them idempotent.
 - **Sweep** (`outbox.sweep`, direct invoke): up to 5 rounds of 100 unsent rows older than 2 minutes, oldest first, then deletes `processed_events` older than 7 days.
-- Consumers: `notify.OnOrderEvent`, `stats.Apply`, `catalog.OnDelivered` (buy-again), `cartclient.OnCatalogChanged`, `site.OnRebuild`, `finance` (none async — ledger is written in the transaction).
+- Consumers: `notify.OnOrderEvent`, `stats.Apply`, `catalog.OnDelivered` (buy-again), `catalog.CartSync.OnChanged` (cart price list), `site.OnRebuild`, `finance` (none async — ledger is written in the transaction).
 - `site.rebuild` is sent to SQS with a **120 s delay**. When it arrives, the consumer (`site.Rebuilder`) checks `outbox` for a **newer** `site.rebuild` row; if there is one, it skips (that newer event will do the build). So a burst of shop edits makes one rebuild. Then it `POST`s the deploy hook URL from SSM (`pages/deploy-hook`, must be `https`) with a 5 s timeout. A failure, or a missing secret, is an error: the queue retries and the DLQ alarm fires. Errors never contain the URL.
 - `timer.schedule` events are **not** sent to SQS; the publisher calls Scheduler `CreateSchedule` with name `ord-<id>-<kind>-<rev>`, `at(…)` in UTC, target `timer`, payload `{orderId, kind, revisionNo}`, `ActionAfterCompletion: DELETE`. `ConflictException` = already exists = success. Write one with `events.AddTimer(ctx, tx, shopID, events.Timer{OrderID, Kind, RevisionNo, RunAt})`. A `RunAt` that is already past (or less than 30 s away) is moved to 30 s from now, because Scheduler refuses the past; the timer handler is a no-op when the order has moved on.
 - Timer handler: `order.Transition(ctx, systemScope, id, EXPIRED, {expectFrom: …, expectRevision: rev})`. Wrong state → no-op, return nil.
