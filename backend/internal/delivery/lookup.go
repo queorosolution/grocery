@@ -41,3 +41,14 @@ func (s *Service) CheckSlot(ctx context.Context, tx *db.Tx, shopID, slotID uuid.
 	}
 	return nil
 }
+
+// BookSlot takes one place in a slot of the shop (see Book). It is the order
+// module's way in; the check and the increment are one statement.
+func (s *Service) BookSlot(ctx context.Context, tx *db.Tx, shopID, slotID uuid.UUID, now time.Time) error {
+	return Book(ctx, tx, shopID, slotID, now)
+}
+
+// ReleaseSlot gives a place back (see Release).
+func (s *Service) ReleaseSlot(ctx context.Context, tx *db.Tx, slotID uuid.UUID) error {
+	return Release(ctx, tx, slotID)
+}

@@ -222,6 +222,18 @@ Inside one `db.Tx`:
 6. Insert `order_events`, `events.Add(...)`, `audit.Write(...)` for admin overrides.
 7. After commit: publish events, create timers.
 
+**Built in P19:**
+- `Transition(ctx, scope, orderID, to, TransitionInput{Version, Reason})` opens the transaction; `transition(ctx, tx, …)` is the same inside a caller's transaction (timers, payment callback). The caller's scope is checked after row level security: an order outside the caller's scope is `NOT_FOUND`.
+- Order of the checks: scope → version (`STALE_ORDER`) → the generated table for this actor (`INVALID_TRANSITION`) → reason (`VALIDATION_ERROR`) → hook → `UPDATE … WHERE version` → `order_events` + outbox event → audit row when the actor is `SUPER_ADMIN`.
+- `hooks` (in `order/hooks.go`) is a map from transition id to the side effect. **A move with no entry refuses to run**, so a half-built flow can never change an order without its side effects. P19 has T01 (review timer), and the slot release for T04, T05, T06, T08, T09 and T19. Later prompts add the rest.
+- The outbox event is chosen by the status the order ends in (`eventFor`).
+- The system actor (timers, webhooks) has no screen, so `Transition` returns an empty detail for it.
+- T01 is not a call to `Transition` (there is no order yet): `Submit` inserts the order, then runs the same T01 hook and the same `record` step.
+
+**Submit (`POST /bills`):** replay lookup → hourly rate limit → shop facts and cart (outside the transaction) → one transaction in the customer's scope: claim the idempotency key, lock the customer row, price with `billing.Build`, check (phone, open orders, lines, range, minimum), book the slot, insert order and lines, T01 hook and history, save the answer under the key. The cart is deleted after the commit.
+
+**Views (`order/view.go`):** one mapper per viewer (`ViewCustomer`, `ViewConsole`, `ViewDriver`). The driver sees no prices, coupon, payment or timeline; the customer sees no customer block; the console sees the phone masked, in full only while picking. `allowedActions` comes from the transition table plus the viewer (`order/actions.go`).
+
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 
 **Order codes:** `<SHOPPREFIX>-<6 chars>` from Crockford base32, e.g. `KS-7Q2M9X`. Prefix from shop slug (2 letters). Unique index retries once on clash.

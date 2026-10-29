@@ -28,7 +28,7 @@ type SweepResult struct {
 
 // Sweep sends events whose publish was missed (queue down, Lambda ended early):
 // unsent rows older than two minutes, oldest first. It also removes old
-// processed_events rows. It is safe to run twice at once: a duplicate send is
+// processed_events and idempotency_keys rows. It is safe to run twice at once: a duplicate send is
 // absorbed by the consumers' idempotency.
 func (p *Publisher) Sweep(ctx context.Context) (SweepResult, error) {
 	var res SweepResult
@@ -60,6 +60,11 @@ func (p *Publisher) Sweep(ctx context.Context) (SweepResult, error) {
 	err := p.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
 		tag, err := tx.Exec(ctx, `DELETE FROM processed_events WHERE at < $1`, clock.Now().Add(-keepProcessed))
 		res.Pruned = int(tag.RowsAffected())
+		if err != nil {
+			return err
+		}
+		// A key answers retries for 24 hours; the rows stay as long as the other short-lived tables (docs/05 section 9).
+		_, err = tx.Exec(ctx, `DELETE FROM idempotency_keys WHERE created_at < $1`, clock.Now().Add(-keepProcessed))
 		return err
 	})
 	return res, err

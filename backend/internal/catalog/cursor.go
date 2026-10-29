@@ -1,13 +1,11 @@
 package catalog
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
 
-	"gp/internal/shared/apperr"
+	"gp/internal/shared/keyset"
 )
 
 // pageSize is the rows per page of the admin and console lists.
@@ -31,10 +29,9 @@ type priceCursor struct {
 func (c cursor) String() string      { return encodeCursor(c) }
 func (c priceCursor) String() string { return encodeCursor(c) }
 
-func encodeCursor(v any) string {
-	raw, _ := json.Marshal(v) // plain fields cannot fail to marshal
-	return base64.RawURLEncoding.EncodeToString(raw)
-}
+func encodeCursor(v any) string { return keyset.Encode(v) }
+
+func decodeCursor[T any](s string, id func(T) uuid.UUID) (*T, error) { return keyset.Decode(s, id) }
 
 // parseCursor reads a cursor from a query string; empty means the first page.
 func parseCursor(s string) (*cursor, error) {
@@ -43,18 +40,6 @@ func parseCursor(s string) (*cursor, error) {
 
 func parsePriceCursor(s string) (*priceCursor, error) {
 	return decodeCursor(s, func(c priceCursor) uuid.UUID { return c.ID })
-}
-
-func decodeCursor[T any](s string, id func(T) uuid.UUID) (*T, error) {
-	if s == "" {
-		return nil, nil
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(s)
-	var c T
-	if err != nil || json.Unmarshal(raw, &c) != nil || id(c) == uuid.Nil {
-		return nil, apperr.Validation(map[string]string{"cursor": "invalid"})
-	}
-	return &c, nil
 }
 
 // split cuts the extra row off a page fetched with limit+1 rows. next is the

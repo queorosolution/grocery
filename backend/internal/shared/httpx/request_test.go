@@ -68,3 +68,17 @@ func TestDecodeNeverEchoesClientInput(t *testing.T) {
 		t.Fatalf("client input leaked: %v", err)
 	}
 }
+
+func TestPageLimit(t *testing.T) {
+	if n, err := PageLimit("", 20); n != 20 || err != nil {
+		t.Errorf("empty = %d, %v", n, err)
+	}
+	if n, err := PageLimit("7", 20); n != 7 || err != nil {
+		t.Errorf("7 = %d, %v", n, err)
+	}
+	for _, bad := range []string{"x", "1.5", "-", "9999999999999999999999"} {
+		if _, err := PageLimit(bad, 20); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}

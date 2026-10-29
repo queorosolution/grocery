@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
@@ -113,6 +114,10 @@ type cartLine struct {
 
 // body is a quote request for the fixture's shop; extra goes before the closing brace.
 func (f fixture) body(extra string, items ...uuid.UUID) string {
+	return f.bodyOf(cartID, f.addr, extra, items...)
+}
+
+func (f fixture) bodyOf(cart string, addr uuid.UUID, extra string, items ...uuid.UUID) string {
 	refs := ""
 	for i, id := range items {
 		if i > 0 {
@@ -120,7 +125,7 @@ func (f fixture) body(extra string, items ...uuid.UUID) string {
 		}
 		refs += `{"itemId":"` + id.String() + `","subPref":"SIMILAR"}`
 	}
-	b := `{"shopId":"` + f.shop.String() + `","cartId":"` + cartID + `","addressId":"` + f.addr.String() + `","lines":[` + refs + `]`
+	b := `{"shopId":"` + f.shop.String() + `","cartId":"` + cart + `","addressId":"` + addr.String() + `","lines":[` + refs + `]`
 	if extra != "" {
 		b += "," + extra
 	}
@@ -140,4 +145,44 @@ func cartOf(id string, items ...uuid.UUID) cartclient.Cart {
 		c.Lines = append(c.Lines, cartclient.Line{ID: fmt.Sprintf("ln_%d", i), ItemID: &s, Name: "x", UnitPrice: 11000, Quantity: 1})
 	}
 	return c
+}
+
+var phones = 0
+
+// verify marks the account as having a verified phone.
+func (f fixture) verify(email string) {
+	f.a.T.Helper()
+	phones++
+	f.a.Exec(`UPDATE users SET phone = $2, phone_verified_at = now() WHERE email = $1`, email, fmt.Sprintf("+94771%06d", phones))
+}
+
+// submit sends POST /bills with an Idempotency-Key.
+func (f fixture) submit(c apptest.Client, key, body string) *httptest.ResponseRecorder {
+	return c.CallWith(http.MethodPost, "/bills", body, map[string]string{"Idempotency-Key": key})
+}
+
+// firstSlot is the id of the shop's first slot.
+func (f fixture) firstSlot(shopID uuid.UUID) uuid.UUID {
+	f.a.T.Helper()
+	var id uuid.UUID
+	if err := f.a.Env.Owner.QueryRow(context.Background(), `SELECT id FROM slots WHERE shop_id = $1 ORDER BY starts_at LIMIT 1`, shopID).Scan(&id); err != nil {
+		f.a.T.Fatal(err)
+	}
+	return id
+}
+
+// sent is a submitted order, ready to be read in tests.
+func (f fixture) placed(c apptest.Client, key, body string) order.Detail {
+	f.a.T.Helper()
+	w := f.submit(c, key, body)
+	if w.Code != http.StatusCreated {
+		f.a.T.Fatalf("POST /bills = %d %s", w.Code, w.Body)
+	}
+	return apptest.Decode[order.Detail](f.a.T, w)
+}
+
+// get reads an order through GET /orders/{id}.
+func (f fixture) get(c apptest.Client, id uuid.UUID) order.Detail {
+	f.a.T.Helper()
+	return apptest.Decode[order.Detail](f.a.T, c.OK(http.MethodGet, "/orders/"+id.String(), ""))
 }

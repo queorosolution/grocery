@@ -128,13 +128,4 @@ func reasonFor(s string) string {
 }
 
 // limitOf reads the page size: 1 to 50, 24 when left out.
-func limitOf(s string) (int, error) {
-	if s == "" {
-		return defaultLimit, nil
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, apperr.Validation(map[string]string{"limit": "invalid"})
-	}
-	return n, nil
-}
+func limitOf(s string) (int, error) { return httpx.PageLimit(s, defaultLimit) }
