@@ -40,11 +40,13 @@ func (s *Service) SetMapping(ctx context.Context, scope db.Scope, id uuid.UUID, 
 		return Connector{}, err
 	}
 	var out Connector
+	var intervalBefore int
 	err = s.db.Tx(ctx, scope, func(ctx context.Context, tx *db.Tx) error {
 		before, found, err := byID(ctx, tx, id, true)
 		if err != nil || !found {
 			return apperr.NotFoundUnless(err, found)
 		}
+		intervalBefore = before.IntervalMin
 		if out, err = saveMapping(ctx, tx, id, in, changeCol); err != nil {
 			return err
 		}
@@ -53,6 +55,9 @@ func (s *Service) SetMapping(ctx context.Context, scope db.Scope, id uuid.UUID, 
 			Before: mappingOf(before), After: mappingOf(out),
 		})
 	})
+	if err == nil && out.IntervalMin != intervalBefore {
+		err = s.keepSchedule(ctx, out) // a live connector gets its new interval
+	}
 	return out, err
 }
 

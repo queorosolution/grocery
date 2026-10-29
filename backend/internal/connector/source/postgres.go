@@ -223,6 +223,16 @@ type ReadSpec struct {
 	Columns []string // selected, in this order
 	OrderBy string   // one of Columns
 	Limit   int
+
+	// Change, when set, makes the read incremental: rows whose Change column is at
+	// or after Since (all rows when Since is nil), oldest change first. The change
+	// time of each row comes back as one extra last value in the row, in UTC as
+	// RFC 3339 text, whatever the column's own type. "At or after" re-reads the
+	// rows of the last change time on purpose; applying a row twice does nothing.
+	Change string
+	Since  *time.Time
+	// Only limits the read to rows whose OrderBy column, as text, is in the list.
+	Only []string
 }
 
 func (c *conn) Read(ctx context.Context, spec ReadSpec, fn func(Row) error) error {
@@ -230,18 +240,18 @@ func (c *conn) Read(ctx context.Context, spec ReadSpec, fn func(Row) error) erro
 	if err != nil {
 		return err
 	}
-	query, err := spec.sql(have)
+	query, args, err := spec.sql(have)
 	if err != nil {
 		return err
 	}
 	return c.readOnly(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query)
+		rows, err := tx.Query(ctx, query, args...)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
-			row := make(Row, len(spec.Columns))
+			row := make(Row, spec.width())
 			dest := make([]any, len(row))
 			for i := range row {
 				dest[i] = &row[i]
@@ -257,24 +267,54 @@ func (c *conn) Read(ctx context.Context, spec ReadSpec, fn func(Row) error) erro
 	})
 }
 
-// sql builds the SELECT. Names the table does not have are refused; the rest
-// are quoted with pgx.Identifier. Values come back as text so one code path
-// reads numbers, booleans and timestamps alike.
-func (s ReadSpec) sql(have []Column) (string, error) {
+// width is the number of values in a row: the columns, and the change time when asked for.
+func (s ReadSpec) width() int {
+	if s.Change != "" {
+		return len(s.Columns) + 1
+	}
+	return len(s.Columns)
+}
+
+// sql builds the SELECT and its arguments. Names the table does not have are
+// refused; the rest are quoted with pgx.Identifier. Values come back as text so
+// one code path reads numbers, booleans and timestamps alike. Values from the
+// caller (the time, the ids) are always arguments, never part of the text.
+func (s ReadSpec) sql(have []Column) (string, []any, error) {
 	known := make(map[string]bool, len(have))
 	for _, h := range have {
 		known[h.Name] = true
 	}
-	if len(s.Columns) == 0 || s.Limit < 1 || !known[s.OrderBy] || !IsIdent(s.Table.Schema) || !IsIdent(s.Table.Name) {
-		return "", errors.New("source: bad read spec")
+	if len(s.Columns) == 0 || s.Limit < 1 || !known[s.OrderBy] || !IsIdent(s.Table.Schema) || !IsIdent(s.Table.Name) ||
+		(s.Change != "" && (!IsIdent(s.Change) || !known[s.Change])) {
+		return "", nil, errors.New("source: bad read spec")
 	}
-	cols := make([]string, len(s.Columns))
-	for i, name := range s.Columns {
+	cols := make([]string, 0, len(s.Columns)+1)
+	for _, name := range s.Columns {
 		if !IsIdent(name) || !known[name] {
-			return "", errors.New("source: unknown column")
+			return "", nil, errors.New("source: unknown column")
 		}
-		cols[i] = pgx.Identifier{name}.Sanitize() + "::text"
+		cols = append(cols, pgx.Identifier{name}.Sanitize()+"::text")
 	}
-	return fmt.Sprintf("SELECT %s FROM %s ORDER BY %s LIMIT %d",
-		strings.Join(cols, ", "), pgx.Identifier{s.Table.Schema, s.Table.Name}.Sanitize(), pgx.Identifier{s.OrderBy}.Sanitize(), s.Limit), nil
+	var args []any
+	var where []string
+	order := pgx.Identifier{s.OrderBy}.Sanitize()
+	if s.Change != "" {
+		at := pgx.Identifier{s.Change}.Sanitize() + "::timestamptz"
+		cols = append(cols, `to_char(`+at+` AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`)
+		if s.Since != nil {
+			args = append(args, s.Since.UTC())
+			where = append(where, fmt.Sprintf("%s >= $%d", at, len(args)))
+		}
+		order = at + ", " + order
+	}
+	if len(s.Only) > 0 {
+		args = append(args, s.Only)
+		where = append(where, fmt.Sprintf("%s::text = ANY($%d::text[])", pgx.Identifier{s.OrderBy}.Sanitize(), len(args)))
+	}
+	clause := ""
+	if len(where) > 0 {
+		clause = " WHERE " + strings.Join(where, " AND ")
+	}
+	return fmt.Sprintf("SELECT %s FROM %s%s ORDER BY %s LIMIT %d",
+		strings.Join(cols, ", "), pgx.Identifier{s.Table.Schema, s.Table.Name}.Sanitize(), clause, order, s.Limit), args, nil
 }

@@ -46,6 +46,18 @@ func (g Guard) Validate() error {
 // denies every sig route.
 type SigVerifier func(r *nethttp.Request) error
 
+// SigByRoute gives each signed route its own check. The key is the pattern the
+// mux matched, "POST /v1/connectors/{id}/trigger". A signed route with no entry
+// is denied, so a new webhook is closed until its verifier is added here.
+func SigByRoute(byRoute map[string]SigVerifier) SigVerifier {
+	return func(r *nethttp.Request) error {
+		if v := byRoute[r.Pattern]; v != nil {
+			return v(r)
+		}
+		return apperr.New(apperr.Unauthenticated)
+	}
+}
+
 type guards struct {
 	memberships authz.Loader
 	verifySig   SigVerifier

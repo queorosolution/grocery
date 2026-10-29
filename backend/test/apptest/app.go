@@ -80,7 +80,12 @@ type App struct {
 	Cart *fakes.Cart
 	// Events holds the consumers the worker would run; DrainEvents runs them.
 	Events *events.Registry
-	ips    int
+	// Connector is the connector service the API uses; tests call Run on it as the
+	// sync function would. Schedules and Invoker are the fakes it was given.
+	Connector *connector.Service
+	Schedules *fakes.Schedules
+	Invoker   *fakes.Invoker
+	ips       int
 }
 
 func New(t *testing.T) *App {
@@ -112,7 +117,10 @@ func New(t *testing.T) *App {
 	shopSvc.SetCarts(carts, catalogSvc)
 	reg := events.NewRegistry()
 	catalog.NewCartSync(shopSvc, carts).Register(reg)
-	connectorSvc := connector.NewService(env.DB, sec, localSource(env), cfg.ImgBaseURL)
+	schedules, invoker := fakes.NewSchedules(), &fakes.Invoker{}
+	connectorSvc := connector.NewService(env.DB, sec, localSource(env), cfg.ImgBaseURL).
+		Attach(connector.Runtime{Pricer: pricingSvc, Products: catalogSvc, Hours: shopSvc, Schedules: schedules, Invoker: invoker})
+	connectorHandler := connector.NewHandler(connectorSvc)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
@@ -124,10 +132,12 @@ func New(t *testing.T) *App {
 		Catalog:   catalog.NewHandler(catalogSvc),
 		Pricing:   pricing.NewHandler(pricingSvc),
 		Upload:    upload.NewHandler(uploadSvc, teamSvc),
-		Connector: connector.NewHandler(connectorSvc),
+		Connector: connectorHandler,
 		Audit:     audit.NewHandler(env.DB),
+		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{"POST " + apihttp.Base + apihttp.TriggerPattern: connectorHandler.VerifyTrigger}),
 	}
-	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg}
+	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg,
+		Connector: connectorSvc, Schedules: schedules, Invoker: invoker}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.
