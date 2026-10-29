@@ -11,7 +11,10 @@
     "save": "Save",
     "back": "Back",
     "notice": "Notifications",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "next": "Next",
+    "done": "Done",
+    "error": "Something went wrong. Please try again."
   },
   "qty": {
     "increase": "Add one",
@@ -43,11 +46,136 @@
   },
   "console": {
     "orderTitle": "Order",
-    "soon": "The order panel is coming soon."
+    "soon": "The order panel is coming soon.",
+    "title": "Console",
+    "body": "Pick where you want to work.",
+    "admin": "Platform admin",
+    "adminHint": "Shops, catalog, refunds and payouts",
+    "shop": "Your shop",
+    "shopHint": "Orders, products and team",
+    "driver": "My deliveries",
+    "driverHint": "Today's drop-offs"
   },
   "notFound": {
     "title": "We can't find that page",
     "body": "The link may be old, or the page has moved.",
     "home": "Go to home"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "title": "Sign in",
+    "body": "Use your Google account to see your orders and check out. We never post anything.",
+    "inviteTitle": "Join the team",
+    "inviteBody": "Sign in with the Google account your invite was sent to.",
+    "checking": "Signing you in…",
+    "privacy": "We keep your name, e-mail and the details you add here.",
+    "notConfigured": "Google sign-in is not set up in this build.",
+    "googleFailed": "Google sign-in could not load. Check your connection."
+  },
+  "guard": {
+    "failedTitle": "Couldn't load your account",
+    "failedBody": "Check your connection and try again.",
+    "signInTitle": "Sign in to continue",
+    "signInBody": "This page is for signed-in people.",
+    "deniedTitle": "This page isn't for your account",
+    "deniedBody": "If you think it should be, ask the shop owner or the platform admin."
+  },
+  "menu": {
+    "label": "Account menu",
+    "account": "My account",
+    "console": "Console",
+    "signOut": "Sign out"
+  },
+  "totp": {
+    "setupTitle": "Set up your authenticator",
+    "setupBody": "Admin screens ask for a 6-digit code each time you sign in. Scan the code with an authenticator app, then enter the first code it shows.",
+    "start": "Show my QR code",
+    "qrLabel": "QR code for your authenticator app",
+    "secret": "Secret: {secret}",
+    "openApp": "Open in authenticator app",
+    "codeLabel": "6-digit code",
+    "turnOn": "Turn on",
+    "codeTitle": "Enter your code",
+    "codeBody": "Open your authenticator app and type the current 6-digit code.",
+    "verify": "Continue"
+  },
+  "phone": {
+    "label": "Mobile number",
+    "hint": "Like 0771234567. We send one text with a code.",
+    "invalid": "Enter a Sri Lankan mobile number, like 0771234567.",
+    "send": "Send code",
+    "sent": "We sent a code to {phone}.",
+    "codeLabel": "Code from the text",
+    "verify": "Verify",
+    "change": "Use a different number"
+  },
+  "onboarding": {
+    "progress": "Step {step} of {total}",
+    "nameTitle": "What should we call you?",
+    "nameLabel": "Your name",
+    "nameHint": "Shops see this on your orders.",
+    "phoneTitle": "Verify your phone",
+    "addressTitle": "Where should we deliver?",
+    "finish": "Start shopping",
+    "skip": "Add it later"
+  },
+  "account": {
+    "title": "Account",
+    "name": "Name",
+    "email": "E-mail",
+    "phone": "Mobile",
+    "edit": "Edit",
+    "change": "Change",
+    "verify": "Verify",
+    "noPhone": "No number yet",
+    "verified": "Verified",
+    "notVerified": "Not verified",
+    "phoneTitle": "Your mobile number",
+    "saved": "Saved",
+    "addresses": "Delivery addresses",
+    "signOut": "Sign out",
+    "signOutAll": "Sign out everywhere",
+    "signOutAllBody": "You will be signed out on every phone and computer.",
+    "deleteInfo": "To delete your account, call us."
+  },
+  "address": {
+    "label": "Name this place",
+    "presets": "Quick names",
+    "home": "Home",
+    "work": "Work",
+    "line1": "Address",
+    "line1Hint": "House number, street, town",
+    "landmark": "Landmark (optional)",
+    "pin": "Pin on the map",
+    "makeDefault": "Use this as my main address",
+    "save": "Save address",
+    "labelMissing": "Give this place a name.",
+    "lineShort": "Enter the street address.",
+    "pinMissing": "Put a pin on the map.",
+    "outside": "That pin is outside Sri Lanka.",
+    "tooMany": "You can keep up to 5 addresses. Remove one to add another.",
+    "noShops": "No shop delivers here yet. You can still look around.",
+    "shops": "{count} shops deliver here",
+    "shopOne": "1 shop delivers here",
+    "shopLine": "{name}, {km} km",
+    "default": "Main",
+    "makeDefaultShort": "Make main",
+    "remove": "Remove",
+    "emptyTitle": "No addresses yet",
+    "emptyBody": "Add one so shops can tell if they deliver to you.",
+    "add": "Add address",
+    "edit": "Edit address",
+    "removeTitle": "Remove this address?",
+    "removeBody": "“{label}” will be removed from your account.",
+    "removed": "Address removed"
+  },
+  "map": {
+    "label": "Map. Tap to place the pin.",
+    "loading": "Loading map…",
+    "useMine": "Use my location",
+    "noLocation": "We couldn't get your location. Enter the pin below instead.",
+    "failed": "The map could not load.",
+    "lat": "Latitude",
+    "lng": "Longitude"
   }
 }

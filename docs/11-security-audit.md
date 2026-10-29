@@ -145,17 +145,87 @@ Mapped to OWASP Top 10 (2021) and OWASP API Security Top 10 (2023) in the last c
 
 ## 2. Security test files
 
-| Folder | Contains |
+The checks that walk the whole API or the whole source tree live in `backend/test/security/`. The checks of one module live next to that module, because they need its fixtures (a shop, a product, a cart, a payment); section 2.1 says where.
+
+| File | Contains |
 |---|---|
-| `backend/test/security/authz_matrix_test.go` | Generated from `routes.go`: every route × every role × own / other scope → expected status |
-| `backend/test/security/webhook_test.go` | PayHere notify: bad sig, wrong amount, replay, late payment, card field stripping |
-| `backend/test/security/ssrf_test.go` | Connector host table |
-| `backend/test/security/race_test.go` | Slot and coupon races (20 goroutines) |
-| `backend/test/security/auth_test.go` | Google token cases, JWT alg cases, refresh reuse, TOTP |
-| `backend/internal/shared/logx/redact_test.go` | Redaction |
-| `contracts/schema_test.sql` | RLS and constraints (30 checks) |
-| `web/src/lib/*.test.ts` | `safeNext`, `safeUrl`, `isAllowedPayHereAction` |
-| `web/e2e/xss.spec.ts` | XSS-01, XSS-02 in a real browser |
+| `backend/test/security/authz_matrix_test.go` | Generated from `routes.go`: every `perm:` and `admin` route × every role × own / other shop → expected status (AUTHZ-02, AUTHZ-07) |
+| `backend/test/security/authz_routes_test.go` | The other routes: public, user and signed; unknown body fields on every route (AUTHZ-05) |
+| `backend/test/security/authz_owner_test.go` | A stranger on every route that names an order or an address, compared with an id that does not exist (AUTHZ-01, DATA-05); a driver on another driver's order (AUTHZ-03) |
+| `backend/test/security/static_test.go` | SQL text is always fixed (SQLI-01); only listed packages make HTTP requests (SSRF-03); `source_test.go` holds the source reader they share |
+| `backend/test/security/template_test.go` | No wildcard IAM action or resource (INFRA-01); no secret in Lambda variables or stack parameters (INFRA-06) |
+| `backend/test/security/ci_test.go` | The CI steps of section 3 are still there (SUP-01, SUP-02, DATA-02, AUTHZ-09, XSS-08); actions pinned (SUP-03); web lint rules and the `NEXT_PUBLIC_` check wired (XSS-08, XSS-09) |
+| `backend/test/security/coverage_test.go` | Every C and H row of section 1 has a test, or is a listed gap |
+| `backend/internal/order/pay_notify_test.go` | PayHere notify: bad sig, wrong amount, replay, late payment, card field stripping (BIZ-06..09, DATA-03) |
+| `backend/internal/order/submit_limits_test.go`, `coupon_release_test.go` | Slot and coupon races, 20 goroutines (BIZ-03, BIZ-04) |
+| `backend/internal/connector/source/guard_test.go` | Connector host table (SSRF-01, SSRF-02) |
+| `backend/internal/auth/*_test.go` | Google token cases, JWT alg cases, refresh reuse, TOTP (AUTHN-01..06) |
+| `backend/internal/shared/logx/logx_test.go` | Redaction (DATA-01) |
+| `contracts/schema_test.sql` | RLS and constraints (30 checks), run by `make test-schema` in CI (AUTHZ-09) |
+| `web/src/lib/safeUrl.test.ts` | `safeNext`, `safeUrl`, `isAllowedPayHereAction` (XSS-03..05) |
+| `web/e2e/xss.spec.ts` | XSS-01, XSS-02 in a real browser (P34) |
+
+### 2.1 Where each C and H check is tested
+
+Written by name: a test belongs to a check when its file names the check ID. `TestCoverage_EveryCriticalAndHighCheckHasATest` reads section 1, fails for a C or H row without a test, and fails again when a gap listed in the test is closed but not removed. A new test only has to carry the ID in a comment or a test name.
+
+| ID | Sev | Tested in |
+|---|---|---|
+| XSS-01 | H | open: the browser check with a seeded product (E2E, P34); the lint rule is kept on by `TestWeb_SecurityControlsAreWired` |
+| XSS-02 | H | open: needs the `/search` page (P29) |
+| XSS-03 | H | `web/lib/safeUrl.test.ts` |
+| XSS-04 | H | `catalog/product_test.go`, `web/lib/safeUrl.test.ts` |
+| XSS-05 | H | `web/lib/safeUrl.test.ts` |
+| XSS-08 | H | `test/security/ci_test.go` |
+| XSS-09 | H | `test/security/ci_test.go` |
+| CSRF-01 | H | `http/router_test.go`, `shared/httpx/middleware_test.go` |
+| CORS-01 | H | `http/router_test.go`, `shared/httpx/middleware_test.go` |
+| SSRF-01 | C | `connector/connector_test.go`, `connector/source/guard_test.go` |
+| SSRF-02 | H | `connector/connector_test.go`, `connector/source/guard_test.go`, `connector/source/postgres_test.go` |
+| SSRF-03 | H | `test/security/static_test.go` |
+| SQLI-01 | C | `test/security/ci_test.go`, `test/security/static_test.go` |
+| SQLI-02 | C | `connector/mapping_test.go`, `connector/source/postgres_test.go`, `test/security/static_test.go` |
+| SQLI-03 | H | `catalog/search_test.go` |
+| AUTHN-01 | C | `auth/google_test.go` |
+| AUTHN-02 | C | `auth/token_test.go` |
+| AUTHN-03 | H | `auth/session_test.go` |
+| AUTHN-04 | H | `auth/signin_test.go` |
+| AUTHN-05 | C | `auth/totp_test.go` |
+| AUTHN-06 | H | `auth/totp_test.go` |
+| AUTHN-07 | H | `team/invite_test.go` |
+| AUTHN-09 | H | `user/phone_test.go` |
+| AUTHZ-01 | C | `order/orders_test.go`, `test/security/authz_routes_test.go` |
+| AUTHZ-02 | C | `order/console_test.go`, `team/team_test.go`, `test/security/authz_matrix_test.go` |
+| AUTHZ-03 | C | `order/delivery_code_test.go`, `test/security/authz_routes_test.go` |
+| AUTHZ-04 | H | `team/team_test.go` |
+| AUTHZ-05 | H | `test/security/authz_routes_test.go` |
+| AUTHZ-06 | H | `order/view_test.go` |
+| AUTHZ-07 | C | `test/security/authz_matrix_test.go` |
+| AUTHZ-09 | C | `test/security/ci_test.go` |
+| BIZ-01 | C | `billing/build_test.go`, `order/quote_test.go` |
+| BIZ-02 | H | `billing/build_test.go`, `order/quote_test.go` |
+| BIZ-03 | H | `order/coupon_release_test.go`, `test/security/ci_test.go` |
+| BIZ-04 | H | `order/submit_limits_test.go`, `test/security/ci_test.go` |
+| BIZ-05 | H | `order/submit_limits_test.go` |
+| BIZ-06 | C | `order/pay_notify_test.go` |
+| BIZ-07 | C | `order/pay_notify_test.go` |
+| BIZ-08 | H | `order/pay_notify_test.go` |
+| BIZ-09 | H | `order/pay_notify_test.go` |
+| BIZ-10 | H | `order/cancel_test.go` |
+| BIZ-11 | H | `order/delivery_code_test.go`, `order/transition_test.go` |
+| BIZ-13 | H | `user/phone_test.go` |
+| BIZ-15 | H | `connector/run_test.go` |
+| DATA-01 | H | `shared/logx/logx_test.go`, `user/phone_test.go` |
+| DATA-02 | C | `test/security/ci_test.go` |
+| DATA-03 | C | `order/pay_notify_test.go` |
+| DATA-04 | H | `order/delivery_code_test.go` |
+| DATA-06 | H | manual: restore drill before go-live (P35, `14-deployment.md`) |
+| DATA-08 | C | `connector/connector_test.go`, `shop/payment_test.go` |
+| INFRA-01 | H | `test/security/ci_test.go`, `test/security/template_test.go` |
+| INFRA-05 | C | `shared/db/open_test.go` |
+| INFRA-06 | H | `test/security/template_test.go` |
+| SUP-01 | H | `test/security/ci_test.go` |
+| SUP-02 | H | `test/security/ci_test.go` |
 
 ## 3. Automated checks (CI, every pull request)
 

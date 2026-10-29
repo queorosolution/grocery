@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { ToastProvider } from "@/components/ui";
+import { AuthProvider } from "@/features/auth/AuthProvider";
 import { ApiError } from "@/lib/api";
 
 const MINUTE = 60_000;
@@ -24,7 +25,9 @@ export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(makeClient);
   return (
     <QueryClientProvider client={client}>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        <AuthProvider>{children}</AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
