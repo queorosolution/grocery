@@ -30,3 +30,13 @@ const colomboDate = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, year: "nu
 export function colomboDay(offsetDays: number, now: Date = new Date()): string {
   return colomboDate.format(new Date(now.getTime() + offsetDays * 86_400_000));
 }
+
+/** "2026-11-02" + "08:30" as the moment in Colombo (UTC+5:30, no daylight saving), in ISO form for the API. */
+export const colomboIso = (date: string, time: string): string => `${date}T${time}:00+05:30`;
+
+/** A day shifted by whole days, both as Colombo dates: addDays("2026-11-02", 7) = "2026-11-09". */
+export function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}

@@ -1,3 +1,4 @@
+import type { Shop } from "@/features/admin/types";
 import type { Me } from "@/features/auth/types";
 import type { OrderDetail } from "@/features/orders/types";
 import type { QueueRow, ShopOrder } from "@/features/console-shop/types";
@@ -55,3 +56,11 @@ export const shopOrder = (over: Partial<ShopOrder> = {}): ShopOrder => ({
   ],
   ...over,
 } as ShopOrder);
+
+/** One shop as the admin API lists it. */
+export const adminShop = (over: Partial<Shop> = {}): Shop => ({
+  id: "s1", slug: "krishna-super", name: "Krishna Super", phone: "+94112223344", addressText: "Main St", lat: 6.9, lng: 79.8,
+  logoUrl: null, themeColor: "#1a7f4b", status: "ACTIVE", acceptingOrders: true, updatedAt: "2026-10-29T00:00:00Z", ...over,
+});
+
+export const superAdmin = (): Me["roles"] => [{ role: "SUPER_ADMIN", shopId: null, shopSlug: null, shopName: null }];

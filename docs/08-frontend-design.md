@@ -231,6 +231,14 @@ flowchart TD
 - "Couldn't deliver" needs a note of 3 to 300 characters. A stale or missing order (`409`, `404`) asks for the list again.
 - The numbers at the bottom are `GET /driver/stats` for today and for the last 7 days.
 
+### Admin screens (`/console/admin/…`)
+
+- One menu (`features/admin/sections.ts`) lists the admin pages; each part of P33 adds its lines. Every admin call goes through `adminCall` / `useAdminQuery` / `useAdminMutation` (`features/admin/api.ts`), which add the `/admin` prefix and ask lists again after a change.
+- **Shop setup** `/console/admin/shop/:id?tab=…`: profile, settings (with the cart-service card), hours, slots, fees (with a fee preview), payment. The readiness card on top lists what is missing and links to the tab that fixes it; the "taking orders" switch stays off until nothing is missing (the API checks again).
+- **Secrets are write-only.** The PayHere merchant secret is a password box that is sent once and emptied after the save; the list only shows "Secret saved" (`hasSecret`). The cart card shows the public key only.
+- Money is typed in rupees and sent as exact cents (`parseRupees`); km and kg use at most 2 decimals (`parseDec2`). Times are Sri Lanka time; "24:00" is allowed only as a closing time.
+- The shop logo is a link to an image on our image host for now; picture upload through `POST /uploads/presign` is not built yet.
+
 ## 9. Frontend security rules
 
 | Rule | How |

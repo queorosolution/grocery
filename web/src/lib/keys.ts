@@ -14,6 +14,8 @@ export const keys = {
   orders: () => ["orders"] as const,
   /** Everything under /console/shops/{shopId}: keys.shopConsole(id, "orders", tab). */
   shopConsole: (shopId: string, ...parts: readonly unknown[]) => ["shopConsole", shopId, ...parts] as const,
+  /** Everything under /admin: keys.admin("shops"), keys.admin("shop", id), keys.admin("orders", filters). */
+  admin: (...parts: readonly unknown[]) => ["admin", ...parts] as const,
   /** The driver's own screens: keys.driver("deliveries", day), keys.driver("stats", from, to). */
   driver: (...parts: readonly unknown[]) => ["driver", ...parts] as const,
   quote: (...parts: readonly unknown[]) => ["quote", ...parts] as const,
