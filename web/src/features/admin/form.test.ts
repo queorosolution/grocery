@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDec2, parseInt10 } from "./form";
+import { bpToText, parseDec2, parseInt10, parsePercentBp } from "./form";
 import { toRule } from "./shops/RuleForm";
 
 describe("number boxes", () => {
@@ -30,5 +30,21 @@ describe("fee rule from text", () => {
     expect(toRule({ ...draft, baseCents: "ten" })).toBeNull();
     expect(toRule({ ...draft, maxKm: "1.234" })).toBeNull();
     expect(toRule({ ...draft, maxCents: "1.234" })).toBeNull();
+  });
+});
+
+describe("percent as basis points", () => {
+  it("splits the text, no floating point", () => {
+    expect(parsePercentBp("12.5")).toBe(1250);
+    expect(parsePercentBp("7.25")).toBe(725);
+    expect(parsePercentBp("100")).toBe(10000);
+    for (const bad of ["", "0", "100.01", "1.234", "-5", "abc"]) expect(parsePercentBp(bad)).toBeNull();
+  });
+
+  it("writes basis points back as percent text", () => {
+    expect(bpToText(1250)).toBe("12.5");
+    expect(bpToText(1205)).toBe("12.05");
+    expect(bpToText(1200)).toBe("12");
+    expect(bpToText(5)).toBe("0.05");
   });
 });

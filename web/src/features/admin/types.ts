@@ -202,3 +202,46 @@ export interface MasterProduct {
   brand: string | null;
   sizeLabel: string | null;
 }
+
+export interface Category {
+  id: string;
+  parentId: string | null;
+  slug: string;
+  name: string;
+  sort: number;
+  defaultWeightG: number;
+}
+
+/** A master product: the catalog entry that shops put on sale. */
+export interface Product extends MasterProduct {
+  unit: "PCS" | "KG" | "G" | "L" | "ML";
+  weightG: number | null;
+  categoryId: string | null;
+  imageUrl: string | null;
+  keywords: string;
+  status: "ACTIVE" | "HIDDEN";
+}
+
+export interface Markup {
+  categoryId: string;
+  markupBp: number;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  shopId: string | null;
+  type: "PERCENT" | "FIXED";
+  value: number;
+  maxDiscountCents: number | null;
+  minOrderCents: number;
+  startsAt: string;
+  endsAt: string;
+  usageLimit: number | null;
+  perUserLimit: number;
+  usedCount: number;
+  fundedBy: "PLATFORM" | "SHOP";
+  allowLoss: boolean;
+  status: "ACTIVE" | "PAUSED";
+  createdAt: string;
+}

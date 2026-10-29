@@ -4,5 +4,7 @@ import type { MessageKey } from "@/lib/i18n";
 export const SECTIONS: readonly { path: string; label: MessageKey }[] = [
   { path: "", label: "admin.section.dashboard" },
   { path: "shops", label: "admin.section.shops" },
+  { path: "catalog", label: "admin.section.catalog" },
+  { path: "coupons", label: "admin.section.coupons" },
   { path: "sync-issues", label: "admin.section.issues" },
 ];

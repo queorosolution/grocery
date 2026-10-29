@@ -145,7 +145,7 @@ Route folders: `/s/:slug` = `app/(customer)/s/[slug]/page.tsx`, `/order/:id` = `
 | `/console/shop/:shopId/payouts` | owner | Balance, history |
 | `/console/driver` | drivers | Today's list → big "Enter code" / "Couldn't deliver" |
 | `/console/admin` | admin | Dashboard |
-| `/console/admin/shops`, `/console/admin/shop/:id?tab=profile\|settings\|hours\|slots\|fees\|payment\|connector` | admin | Shop setup as tabs, with a readiness checklist |
+| `/console/admin/shops`, `/console/admin/shop/:id?tab=profile\|settings\|hours\|slots\|fees\|payment\|products\|connector` | admin | Shop setup as tabs, with a readiness checklist |
 | `/console/admin/{catalog,sync-issues,coupons,orders,refunds,tickets,payouts,users,audit}` | admin | Lists + detail dialogs |
 
 ### 4.1 Sign-in, guards and onboarding
@@ -238,6 +238,7 @@ flowchart TD
 - **Secrets are write-only.** The PayHere merchant secret is a password box that is sent once and emptied after the save; the list only shows "Secret saved" (`hasSecret`). The cart card shows the public key only.
 - Money is typed in rupees and sent as exact cents (`parseRupees`); km and kg use at most 2 decimals (`parseDec2`). Times are Sri Lanka time; "24:00" is allowed only as a closing time.
 - **Connector wizard** (the shop's `connector` tab): connect → test → table → map → preview → switch on → trigger secret. The connection string goes in a password box that is emptied as soon as it is sent; only the masked host comes back. The trigger secret is shown once in a window and dropped from memory when it closes. Run errors are one of three fixed words; text from the shop's database is never shown. `/console/admin/sync-issues` lists rows with no match (link, add, ignore) and held prices (use new, keep current, ignore); a price of 0 cannot be approved.
+- **Catalog** `/console/admin/catalog`: master products (search by word, 50 a page, a blank box clears an optional field) and two-level categories. **Shop `products` tab:** put a catalog product on sale by hand, and category markups in basis points (saving prices every product of the shop again). **Coupons** `/console/admin/coupons`: percent is typed as text ("12.5") and sent as basis points, rupees as exact cents, times are Sri Lanka time. After a coupon is made only the window, limits, minimum bill, status and "allow loss" change.
 - The shop logo is a link to an image on our image host for now; picture upload through `POST /uploads/presign` is not built yet.
 
 ## 9. Frontend security rules
