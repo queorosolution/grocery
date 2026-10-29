@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gp/internal/events"
@@ -10,6 +11,7 @@ import (
 	"gp/internal/shared/clock"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
+	"gp/internal/shared/money"
 	"gp/internal/team"
 )
 
@@ -30,7 +32,7 @@ var hooks = map[string]hook{
 	"T10": markPaid,
 	// Release the slot place. An order that waited for payment also gives back its coupon.
 	"T04": releaseSlot, "T05": releaseSlot, "T06": releaseSlot, "T08": releaseSlot, "T09": releaseSlot,
-	"T11": releaseUnpaid, "T12": releaseUnpaid, "T19": releaseSlot,
+	"T11": releaseUnpaid, "T12": releaseUnpaid, "T19": cancelRefund,
 	// Fulfilment: the event of the move is all that picking and packing do. Sending out
 	// needs a driver and makes the delivery code; delivering posts the delivery fee.
 	"T13": noEffect, "T14": noEffect, "T15": sendOut, "T18": sendOut,
@@ -54,6 +56,23 @@ func releaseSlot(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ Tran
 		return nil // a courier order has no slot
 	}
 	return s.delivery.ReleaseSlot(ctx, tx, *o.SlotID)
+}
+
+// cancelRefund is T19: the slot place goes back and the refund is approved, in the
+// same transaction. The coupon use stays: the customer paid with it (docs/03
+// section 11), and the refund is what they paid.
+func cancelRefund(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, in TransitionInput) error {
+	if s.refunds == nil {
+		return errors.New("order: T19 needs the refund module")
+	}
+	if err := releaseSlot(ctx, s, tx, o, in); err != nil {
+		return err
+	}
+	var total money.Cents
+	if err := tx.QueryRow(ctx, `SELECT total_cents FROM orders WHERE id = $1`, o.ID).Scan(&total); err != nil {
+		return err
+	}
+	return s.refunds.ApproveCancel(ctx, tx, o.ID, o.ShopID, in.refundID, total, in.by, in.Reason)
 }
 
 // releaseUnpaid is T11 and T12: the order was never paid, so both the place and

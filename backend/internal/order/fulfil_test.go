@@ -15,6 +15,7 @@ import (
 
 // shopFlow is a paid order, the shop's staff and a shop driver, ready to be picked.
 type shopFlow struct {
+	x             trio
 	id            uuid.UUID
 	staff, driver apptest.Client
 	driverID      uuid.UUID
@@ -25,7 +26,7 @@ func (f fixture) paidFlow() shopFlow {
 	x := f.unpaid()
 	f.paid(x)
 	d := f.staff("kamal", string(enum.RoleShopDriver))
-	return shopFlow{id: x.o.ID, staff: f.staff("ravi", string(enum.RoleShopStaff)), driver: d, driverID: d.Session.Me.ID}
+	return shopFlow{x: x, id: x.o.ID, staff: f.staff("ravi", string(enum.RoleShopStaff)), driver: d, driverID: d.Session.Me.ID}
 }
 
 func (f fixture) move(c apptest.Client, id uuid.UUID, to string) order.Detail {

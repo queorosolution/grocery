@@ -51,6 +51,11 @@ type TransitionInput struct {
 	// verified says the delivery code was checked. Only Complete sets it, and a
 	// driver cannot make T16 without it.
 	verified bool
+	// refundID is the refund request an admin approved by cancelling the order
+	// (T19); Nil when the admin cancels on their own.
+	refundID uuid.UUID
+	// by is the user who makes the move; Transition fills it from the scope.
+	by uuid.UUID
 }
 
 // Transition is the only way an order changes status after it was submitted
@@ -102,6 +107,7 @@ func (s *Service) transition(ctx context.Context, tx *db.Tx, scope db.Scope, ord
 	if !built {
 		return errNotBuilt(t.ID)
 	}
+	in.by = scope.UserID
 	if err := hook(ctx, s, tx, &o, in); err != nil {
 		return err
 	}

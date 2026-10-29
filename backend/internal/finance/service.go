@@ -32,10 +32,12 @@ type PaidFacts struct {
 }
 
 type entry struct {
-	kind   enum.LedgerType
-	party  enum.LedgerParty
-	amount money.Cents
-	note   string
+	kind     enum.LedgerType
+	party    enum.LedgerParty
+	amount   money.Cents
+	note     string
+	refundID *uuid.UUID // set on the rows a refund writes
+	payoutID *uuid.UUID // set on the row a payout writes
 }
 
 var errFacts = errors.New("finance: the order numbers do not add up")
@@ -48,9 +50,9 @@ func paidEntries(f PaidFacts) ([]entry, error) {
 		return nil, errFacts
 	}
 	rows := []entry{
-		{enum.LedgerTypeSale, enum.LedgerPartyShop, f.ItemsCents - f.MarginCents, ""},
-		{enum.LedgerTypePlatformMargin, enum.LedgerPartyPlatform, f.MarginCents, ""},
-		{enum.LedgerTypeServiceFee, enum.LedgerPartyPlatform, f.ServiceFeeCents, ""},
+		{kind: enum.LedgerTypeSale, party: enum.LedgerPartyShop, amount: f.ItemsCents - f.MarginCents},
+		{kind: enum.LedgerTypePlatformMargin, party: enum.LedgerPartyPlatform, amount: f.MarginCents},
+		{kind: enum.LedgerTypeServiceFee, party: enum.LedgerPartyPlatform, amount: f.ServiceFeeCents},
 	}
 	if f.DiscountCents > 0 {
 		var party enum.LedgerParty
@@ -62,7 +64,7 @@ func paidEntries(f PaidFacts) ([]entry, error) {
 		default:
 			return nil, errFacts
 		}
-		rows = append(rows, entry{enum.LedgerTypeDiscount, party, -f.DiscountCents, "coupon"})
+		rows = append(rows, entry{kind: enum.LedgerTypeDiscount, party: party, amount: -f.DiscountCents, note: "coupon"})
 	}
 	return rows, nil
 }
@@ -107,5 +109,5 @@ func (s *Service) PostDelivered(ctx context.Context, tx *db.Tx, f DeliveredFacts
 	if f.ByShopDriver {
 		party = enum.LedgerPartyShop
 	}
-	return insert(ctx, tx, f.ShopID, f.OrderID, entry{enum.LedgerTypeDeliveryFee, party, f.DeliveryFeeCents, ""})
+	return insert(ctx, tx, f.ShopID, f.OrderID, entry{kind: enum.LedgerTypeDeliveryFee, party: party, amount: f.DeliveryFeeCents})
 }

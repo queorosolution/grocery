@@ -1,49 +1,40 @@
-// Package refund owns refund requests (docs/03 section 11). This file holds what
-// the payment module needs: opening a request for money that arrived but cannot
-// stand. Deciding and paying out come with the refund prompt.
+// Package refund owns refund requests (docs/03 section 11, FR-RFD-01..05): the
+// shop asks, the admin decides and later marks the money as sent, and only then
+// does the ledger take the refund back.
 package refund
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 
-	"gp/internal/events"
+	"gp/internal/finance"
+	"gp/internal/order"
 	"gp/internal/shared/db"
-	"gp/internal/shared/enum"
-	"gp/internal/shared/money"
 )
 
-type Service struct{}
-
-func NewService() *Service { return &Service{} }
-
-// OpenInput is a refund the system asks for itself. The reason is fixed text
-// written by the caller, never customer input.
-type OpenInput struct {
-	OrderID, ShopID uuid.UUID
-	PaymentID       uuid.UUID
-	Type            enum.RefundType
-	AmountCents     money.Cents
-	Reason          string
+// Orders is what refunds need from the order module. *order.Service is the real one.
+type Orders interface {
+	RefundOrder(ctx context.Context, tx *db.Tx, scope db.Scope, orderID uuid.UUID) (order.RefundOrder, error)
+	MarkLineMissing(ctx context.Context, tx *db.Tx, scope db.Scope, orderID, itemID uuid.UUID) (order.RefundLine, error)
+	RestoreLine(ctx context.Context, tx *db.Tx, orderID, itemID uuid.UUID) error
+	LineOf(ctx context.Context, tx *db.Tx, orderID, itemID uuid.UUID) (order.RefundLine, error)
+	CancelRefund(ctx context.Context, tx *db.Tx, scope db.Scope, orderID, refundID uuid.UUID, reason string) error
 }
 
-// Open adds a REQUESTED refund and tells the admin through the outbox, in the
-// caller's transaction, so the money and its request are saved together.
-func (s *Service) Open(ctx context.Context, tx *db.Tx, in OpenInput) (uuid.UUID, error) {
-	if in.AmountCents <= 0 || in.Type == enum.RefundTypePartial {
-		return uuid.Nil, fmt.Errorf("refund: cannot open a %s refund of %d", in.Type, in.AmountCents)
-	}
-	var id uuid.UUID
-	err := tx.QueryRow(ctx, `
-		INSERT INTO refunds (order_id, shop_id, payment_id, type, amount_cents, reason)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		in.OrderID, in.ShopID, in.PaymentID, in.Type, in.AmountCents, in.Reason).Scan(&id)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	_, err = events.Add(ctx, tx, events.Event{Type: enum.EventTypeRefundRequested, ShopID: in.ShopID, EntityID: id.String(),
-		Payload: map[string]any{"refundId": id, "orderId": in.OrderID, "type": in.Type, "amountCents": in.AmountCents}})
-	return id, err
+// Ledger posts the rows of a refund that was paid out. *finance.Service is the real one.
+type Ledger interface {
+	PostRefund(ctx context.Context, tx *db.Tx, f finance.RefundFacts) error
 }
+
+type Service struct {
+	db     *db.DB
+	ledger Ledger
+	orders Orders
+}
+
+func NewService(d *db.DB, l Ledger) *Service { return &Service{db: d, ledger: l} }
+
+// SetOrders gives the service the order module. It is a setter because the order
+// module needs the refund service too (T19).
+func (s *Service) SetOrders(o Orders) { s.orders = o }
