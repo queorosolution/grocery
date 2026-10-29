@@ -2,6 +2,8 @@ package http
 
 import (
 	nethttp "net/http"
+
+	"gp/internal/shared/enum"
 )
 
 // Route is one line of the route table. Every route has a guard; a route
@@ -13,8 +15,9 @@ type Route struct {
 	Handler nethttp.HandlerFunc
 }
 
-// routes lists every API route. Patterns are relative to the /v1 base.
-func routes(d Deps) []Route {
+// Routes lists every API route. Patterns are relative to the /v1 base. It is
+// exported so the security tests can walk the same table the server serves.
+func Routes(d Deps) []Route {
 	table := []Route{
 		{nethttp.MethodGet, "/health", Public, health},
 		{nethttp.MethodGet, "/bootstrap", Public, bootstrap(d)},
@@ -25,6 +28,22 @@ func routes(d Deps) []Route {
 			Route{nethttp.MethodPost, "/auth/refresh", Public, d.Auth.Refresh},
 			Route{nethttp.MethodPost, "/auth/logout", User, d.Auth.Logout},
 			Route{nethttp.MethodGet, "/me", User, d.Auth.Me},
+			Route{nethttp.MethodPost, "/auth/totp/setup", User, d.Auth.TotpSetup},
+			Route{nethttp.MethodPost, "/auth/totp/verify", User, d.Auth.TotpVerify},
+			Route{nethttp.MethodGet, "/admin/users", Admin, d.Auth.Users},
+			Route{nethttp.MethodPatch, "/admin/users/{id}", Admin, d.Auth.SetUserStatus},
+		)
+	}
+	if d.Team != nil {
+		const team = "/console/shops/{shopId}/team"
+		manage := Perm(enum.PermissionTeamManage)
+		table = append(table,
+			Route{nethttp.MethodGet, team, manage, d.Team.List},
+			Route{nethttp.MethodPost, team + "/invites", manage, d.Team.Invite},
+			Route{nethttp.MethodPatch, team + "/{membershipId}", manage, d.Team.Change},
+			Route{nethttp.MethodDelete, team + "/{membershipId}", manage, d.Team.Remove},
+			Route{nethttp.MethodPost, "/admin/invites", Admin, d.Team.AdminInvite},
+			Route{nethttp.MethodDelete, "/admin/invites/{id}", Admin, d.Team.AdminRevokeInvite},
 		)
 	}
 	return table

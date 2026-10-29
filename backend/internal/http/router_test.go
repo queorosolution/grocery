@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"gp/internal/shared/authn"
+	"gp/internal/shared/authz"
 	"gp/internal/shared/config"
 	"gp/internal/shared/enum"
 )
@@ -36,7 +38,7 @@ func do(h nethttp.Handler, method, path string, hdr map[string]string, body stri
 
 func TestEveryRouteHasValidGuard(t *testing.T) {
 	seen := map[string]bool{}
-	for _, rt := range routes(testDeps()) {
+	for _, rt := range Routes(testDeps()) {
 		key := rt.Method + " " + rt.Pattern
 		if seen[key] {
 			t.Errorf("%s is registered twice", key)
@@ -109,15 +111,29 @@ func guardedHandler(d Deps) nethttp.Handler {
 	})
 }
 
+// loader answers authz.Loader from a map.
+type loader map[uuid.UUID][]authz.Membership
+
+func (l loader) Memberships(_ context.Context, id uuid.UUID) ([]authz.Membership, error) {
+	return l[id], nil
+}
+
 func asActor(a authn.Actor) func(*nethttp.Request) (authn.Actor, bool) {
 	return func(*nethttp.Request) (authn.Actor, bool) { return a, true }
 }
 
 func TestGuards(t *testing.T) {
-	user := authn.Actor{UserID: uuid.New(), Roles: []enum.Role{enum.RoleCustomer}}
-	adminNoTotp := authn.Actor{UserID: uuid.New(), Roles: []enum.Role{enum.RoleSuperAdmin}}
+	user := authn.Actor{UserID: uuid.New()}
+	adminNoTotp := authn.Actor{UserID: uuid.New()}
 	admin := adminNoTotp
 	admin.TotpOK = true
+	withRoles := func(a authn.Actor) func(Deps) Deps {
+		return func(d Deps) Deps {
+			d.Authenticate = asActor(a)
+			d.Memberships = loader{adminNoTotp.UserID: {{Role: enum.RoleSuperAdmin}}}
+			return d
+		}
+	}
 
 	cases := []struct {
 		name  string
@@ -128,9 +144,10 @@ func TestGuards(t *testing.T) {
 	}{
 		{"user anonymous", func(d Deps) Deps { return d }, "/v1/u", 401, "UNAUTHENTICATED"},
 		{"user ok", func(d Deps) Deps { d.Authenticate = asActor(user); return d }, "/v1/u", 204, ""},
-		{"admin as customer", func(d Deps) Deps { d.Authenticate = asActor(user); return d }, "/v1/a", 403, "FORBIDDEN"},
-		{"admin without totp", func(d Deps) Deps { d.Authenticate = asActor(adminNoTotp); return d }, "/v1/a", 401, "TOTP_REQUIRED"},
-		{"admin ok", func(d Deps) Deps { d.Authenticate = asActor(admin); return d }, "/v1/a", 204, ""},
+		{"admin as customer", withRoles(user), "/v1/a", 403, "FORBIDDEN"},
+		{"admin without totp", withRoles(adminNoTotp), "/v1/a", 401, "TOTP_REQUIRED"},
+		{"admin ok", withRoles(admin), "/v1/a", 204, ""},
+		{"admin fails closed without a loader", func(d Deps) Deps { d.Authenticate = asActor(admin); return d }, "/v1/a", 403, "FORBIDDEN"},
 		{"perm fails closed", func(d Deps) Deps { d.Authenticate = asActor(user); return d }, "/v1/p", 403, "FORBIDDEN"},
 		{"perm anonymous", func(d Deps) Deps { return d }, "/v1/p", 401, "UNAUTHENTICATED"},
 	}
@@ -176,7 +193,7 @@ func TestCSRF01(t *testing.T) {
 }
 
 func withUser(d Deps) Deps {
-	d.Authenticate = asActor(authn.Actor{UserID: uuid.New(), Roles: []enum.Role{enum.RoleCustomer}})
+	d.Authenticate = asActor(authn.Actor{UserID: uuid.New()})
 	return d
 }
 

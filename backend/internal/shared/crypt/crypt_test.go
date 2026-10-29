@@ -133,3 +133,10 @@ func TestRandomDigits(t *testing.T) {
 		}
 	}
 }
+
+func TestHashToken(t *testing.T) {
+	a, b := HashToken("x"), HashToken("x")
+	if !Equal(a, b) || len(a) != 32 || Equal(a, HashToken("y")) {
+		t.Fatal("hash must be deterministic, 32 bytes, and differ per token")
+	}
+}

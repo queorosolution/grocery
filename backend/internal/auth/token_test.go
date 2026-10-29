@@ -115,13 +115,6 @@ func TestParseKey(t *testing.T) {
 	}
 }
 
-func TestHashRefreshIsStable(t *testing.T) {
-	a, b := hashRefresh("x"), hashRefresh("x")
-	if string(a) != string(b) || len(a) != 32 || string(a) == string(hashRefresh("y")) {
-		t.Fatal("hash must be deterministic, 32 bytes, and differ per token")
-	}
-}
-
 func TestMaskPhone(t *testing.T) {
 	if got := maskPhone("+94771234567"); got != "077•••4567" {
 		t.Fatalf("maskPhone = %q", got)

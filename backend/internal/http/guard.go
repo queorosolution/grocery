@@ -5,8 +5,12 @@ import (
 	nethttp "net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
+	"gp/internal/shared/authz"
+	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
 	"gp/internal/shared/httpx"
 )
@@ -38,25 +42,23 @@ func (g Guard) Validate() error {
 	return fmt.Errorf("unknown guard %q", g)
 }
 
-// Authorizer answers shop-permission questions. The real one arrives with the
-// team module (P08); until then a nil Authorizer denies every perm: route.
-type Authorizer func(r *nethttp.Request, a authn.Actor, p enum.Permission) error
-
 // SigVerifier checks a signed server-to-server call (payment, webhooks). Nil
 // denies every sig route.
 type SigVerifier func(r *nethttp.Request) error
 
 type guards struct {
-	authorize Authorizer
-	verifySig SigVerifier
+	memberships authz.Loader
+	verifySig   SigVerifier
 }
 
 // wrap puts the route's guard in front of its handler. A guard that fails never
 // reaches the handler, and the matched pattern is recorded for the access log.
+// The scope a guard decides on travels in the request context (authz.ScopeFrom).
 func (g guards) wrap(rt Route, h nethttp.Handler) nethttp.Handler {
 	return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		httpx.SetRoute(r.Context(), rt.Method+" "+rt.Pattern)
-		if err := g.check(rt.Guard, r); err != nil {
+		r, err := g.check(rt, r)
+		if err != nil {
 			httpx.Error(w, r, err)
 			return
 		}
@@ -64,35 +66,56 @@ func (g guards) wrap(rt Route, h nethttp.Handler) nethttp.Handler {
 	})
 }
 
-func (g guards) check(guard Guard, r *nethttp.Request) error {
-	if guard == Public {
-		return nil
-	}
-	if guard == Sig {
+func (g guards) check(rt Route, r *nethttp.Request) (*nethttp.Request, error) {
+	switch rt.Guard {
+	case Public:
+		return r, nil
+	case Sig:
 		if g.verifySig == nil {
-			return apperr.New(apperr.Unauthenticated)
+			return r, apperr.New(apperr.Unauthenticated)
 		}
-		return g.verifySig(r)
+		return r, g.verifySig(r)
 	}
 	actor, ok := authn.From(r.Context())
 	if !ok {
-		return apperr.New(apperr.Unauthenticated)
+		return r, apperr.New(apperr.Unauthenticated)
 	}
-	switch {
-	case guard == User:
-		return nil
-	case guard == Admin:
-		if !actor.HasRole(enum.RoleSuperAdmin) {
-			return apperr.New(apperr.Forbidden)
-		}
-		if !actor.TotpOK {
-			return apperr.New(apperr.TotpRequired)
-		}
-		return nil
+	if rt.Guard == User {
+		return withScope(r, db.Scope{UserID: actor.UserID, Role: enum.RoleCustomer}), nil
 	}
-	name, _ := strings.CutPrefix(string(guard), "perm:")
-	if g.authorize == nil {
-		return apperr.New(apperr.Forbidden)
+	if g.memberships == nil {
+		return r, apperr.New(apperr.Forbidden) // fail closed until the team module is wired
 	}
-	return g.authorize(r, actor, enum.Permission(name))
+	ms, err := g.memberships.Memberships(r.Context(), actor.UserID)
+	if err != nil {
+		return r, err
+	}
+	if rt.Guard == Admin {
+		scope, err := authz.RequireAdmin(actor, ms)
+		return withScope(r, scope), err
+	}
+	shopID, err := shopIDOf(rt, r)
+	if err != nil {
+		return r, err
+	}
+	name, _ := strings.CutPrefix(string(rt.Guard), "perm:")
+	scope, err := authz.Require(actor, ms, shopID, enum.Permission(name))
+	return withScope(r, scope), err
+}
+
+// shopIDOf reads {shopId} from routes that have one. A malformed id is the same
+// 404 as a shop the caller does not belong to.
+func shopIDOf(rt Route, r *nethttp.Request) (uuid.UUID, error) {
+	if !strings.Contains(rt.Pattern, "{shopId}") {
+		return uuid.Nil, nil
+	}
+	id, err := uuid.Parse(r.PathValue("shopId"))
+	if err != nil {
+		return uuid.Nil, apperr.New(apperr.NotFound)
+	}
+	return id, nil
+}
+
+func withScope(r *nethttp.Request, s db.Scope) *nethttp.Request {
+	return r.WithContext(authz.WithScope(r.Context(), s))
 }

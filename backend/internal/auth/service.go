@@ -16,26 +16,26 @@ import (
 	"gp/internal/shared/config"
 	"gp/internal/shared/crypt"
 	"gp/internal/shared/db"
+	"gp/internal/shared/enum"
 	"gp/internal/shared/ids"
 	"gp/internal/shared/logx"
 	"gp/internal/shared/ratelimit"
 	"gp/internal/shared/secrets"
+	"gp/internal/team"
 )
 
-const (
-	statusActive = "ACTIVE"
-	maxNameRunes = 80
-)
+const maxNameRunes = 80
 
 type Service struct {
 	cfg      *config.Config
 	db       *db.DB
 	secrets  secrets.Getter
 	verifier IDTokenVerifier
+	team     *team.Service
 }
 
-func NewService(cfg *config.Config, d *db.DB, s secrets.Getter, v IDTokenVerifier) *Service {
-	return &Service{cfg: cfg, db: d, secrets: s, verifier: v}
+func NewService(cfg *config.Config, d *db.DB, s secrets.Getter, v IDTokenVerifier, t *team.Service) *Service {
+	return &Service{cfg: cfg, db: d, secrets: s, verifier: v, team: t}
 }
 
 func (s *Service) jwtKey(ctx context.Context) ([]byte, error) {
@@ -58,7 +58,7 @@ func (s *Service) ipKey(ctx context.Context, ip string) ([]byte, error) {
 
 // SignIn verifies the Google token and opens a session. The IP limit runs
 // first so a flood of junk tokens never reaches Google or the database.
-func (s *Service) SignIn(ctx context.Context, idToken string, ci ClientInfo) (Me, Tokens, error) {
+func (s *Service) SignIn(ctx context.Context, idToken, inviteToken string, ci ClientInfo) (Me, Tokens, error) {
 	ipHash, err := s.ipKey(ctx, ci.IP)
 	if err != nil {
 		return Me{}, Tokens{}, err
@@ -87,8 +87,13 @@ func (s *Service) SignIn(ctx context.Context, idToken string, ci ClientInfo) (Me
 		if err != nil {
 			return err
 		}
-		if u.Status != statusActive {
+		if u.Status != enum.UserStatusActive {
 			return apperr.New(apperr.Forbidden)
+		}
+		if inviteToken != "" {
+			if err := s.team.Accept(ctx, tx, u.ID, u.Email, inviteToken); err != nil {
+				return err
+			}
 		}
 		if slices.Contains(s.cfg.SuperAdminEmails, u.Email) {
 			if err := ensureSuperAdmin(ctx, tx, u.ID); err != nil {
@@ -99,7 +104,7 @@ func (s *Service) SignIn(ctx context.Context, idToken string, ci ClientInfo) (Me
 		if err != nil {
 			return err
 		}
-		me, err = loadMe(ctx, tx, u.ID, false)
+		me, err = s.loadMe(ctx, tx, u.ID, false)
 		return err
 	})
 	if err != nil {
@@ -123,7 +128,7 @@ func (s *Service) Refresh(ctx context.Context, refresh string, ci ClientInfo) (T
 	var tokens Tokens
 	var denied error
 	err = s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
-		sess, found, err := sessionByRefreshHash(ctx, tx, hashRefresh(refresh))
+		sess, found, err := sessionByRefreshHash(ctx, tx, crypt.HashToken(refresh))
 		if err != nil {
 			return err
 		}
@@ -144,7 +149,7 @@ func (s *Service) Refresh(ctx context.Context, refresh string, ci ClientInfo) (T
 		if err != nil {
 			return err
 		}
-		if !ok || u.Status != statusActive {
+		if !ok || u.Status != enum.UserStatusActive {
 			denied = apperr.New(apperr.Unauthenticated)
 			return revokeFamily(ctx, tx, sess.FamilyID)
 		}
@@ -178,7 +183,7 @@ func (s *Service) Me(ctx context.Context, a authn.Actor) (Me, error) {
 	var me Me
 	err := s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
 		var err error
-		me, err = loadMe(ctx, tx, a.UserID, a.TotpOK)
+		me, err = s.loadMe(ctx, tx, a.UserID, a.TotpOK)
 		return err
 	})
 	return me, err
@@ -212,7 +217,7 @@ func (s *Service) open(ctx context.Context, tx *db.Tx, userID, familyID uuid.UUI
 	refresh := ids.Token()
 	refreshExp := clock.Now().Add(RefreshTTL)
 	sessionID, err := insertSession(ctx, tx, newSession{
-		UserID: userID, FamilyID: familyID, Hash: hashRefresh(refresh), TotpOK: totpOK,
+		UserID: userID, FamilyID: familyID, Hash: crypt.HashToken(refresh), TotpOK: totpOK,
 		ExpiresAt: refreshExp, UserAgent: truncate(ci.UserAgent, 200), IPHash: ipHash,
 	})
 	if err != nil {
@@ -240,4 +245,17 @@ func truncate(s string, maxRunes int) string {
 		return s
 	}
 	return string([]rune(s)[:maxRunes])
+}
+
+// requireSuperAdmin refuses callers without the platform role. It reads the
+// role from the database, never from the token.
+func (s *Service) requireSuperAdmin(ctx context.Context, tx *db.Tx, a authn.Actor) error {
+	ms, err := s.team.MembershipsTx(ctx, tx, a.UserID)
+	if err != nil {
+		return err
+	}
+	if !isSuperAdmin(ms) {
+		return apperr.New(apperr.Forbidden)
+	}
+	return nil
 }

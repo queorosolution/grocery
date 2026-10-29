@@ -61,8 +61,8 @@ requestID → securityHeaders → recover → accessLog → bodyLimit → corsAn
 | `accessLog` | Method, route pattern (not raw path), status, ms. No body, no query string values. |
 | `bodyLimit` | 64 KB (16 KB on webhooks). |
 | `corsAndCsrf` | Exact origin match from `ALLOWED_ORIGINS`. Non-GET needs `X-Requested-With: gp-web` + allowed `Origin`. Webhook routes skip this. |
-| `authn` | Reads `gp_at` cookie, verifies HS256 JWT (alg pinned, `iss`, `aud`, `exp`). Puts `Actor{UserID, Roles, TotpOK}` in context. Missing cookie = anonymous. |
-| Route guard | `public`, `user`, `perm:<name>` (needs `{shopId}` in path for shop permissions), `admin` (SUPER_ADMIN + `TotpOK`), `sig`. |
+| `authn` | Reads `gp_at` cookie, verifies HS256 JWT (alg pinned, `iss`, `aud`, `exp`). Puts `Actor{UserID, SessionID, TotpOK}` in context. Missing cookie = anonymous. Roles are **not** in the token: a role change must act at once. |
+| Route guard | `public`, `user`, `perm:<name>` (needs `{shopId}` in path for shop permissions), `admin` (SUPER_ADMIN + `TotpOK`), `sig`. `perm:` and `admin` load the caller's active memberships from the database on every call (`team.Service.Memberships`) and call `authz.Require` / `authz.RequireAdmin`. The result is stored in the request context: handlers read it with `authz.ScopeFrom(ctx)` and never rebuild it. |
 
 **Scope** is built by the guard and passed to services:
 
