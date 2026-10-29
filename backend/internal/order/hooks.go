@@ -13,32 +13,49 @@ import (
 // hook is the side effect of one move (docs/07 section 9 step 4). It runs in the
 // transition's transaction, before the status is saved, so a failing hook rolls
 // the move back.
-type hook func(ctx context.Context, s *Service, tx *db.Tx, o orderRow, in TransitionInput) error
+type hook func(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, in TransitionInput) error
 
 // hooks is keyed by transition id. A move with no entry cannot run: Transition
 // refuses it, so a half-built flow can never change an order without its side
 // effects. Each later prompt adds its moves here.
 var hooks = map[string]hook{
 	"T01": startReviewTimer,
-	// Release the slot place.
+	// The bill is final: freeze it and start the payment timer.
+	"T02": approve, "T07": approve,
+	"T03": reviseBill,
+	// Release the slot place. T11 and T12 also release the coupon once coupons exist (P21).
 	"T04": releaseSlot, "T05": releaseSlot, "T06": releaseSlot, "T08": releaseSlot, "T09": releaseSlot,
-	"T19": releaseSlot,
+	"T11": releaseSlot, "T12": releaseSlot, "T19": releaseSlot,
 }
 
 // startReviewTimer is T01: the shop has the review timeout to answer.
-func startReviewTimer(ctx context.Context, s *Service, tx *db.Tx, o orderRow, _ TransitionInput) error {
+func startReviewTimer(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
 	t, err := s.shops.TimeoutsOf(ctx, tx, o.ShopID)
 	if err != nil {
 		return err
 	}
-	return s.addTimer(ctx, tx, o, events.TimerReview, t.Review)
+	return s.addTimer(ctx, tx, *o, events.TimerReview, t.Review)
 }
 
-func releaseSlot(ctx context.Context, s *Service, tx *db.Tx, o orderRow, _ TransitionInput) error {
+func releaseSlot(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
 	if o.SlotID == nil {
 		return nil // a courier order has no slot
 	}
 	return s.delivery.ReleaseSlot(ctx, tx, *o.SlotID)
+}
+
+// approve is T02 and T07: the totals stop changing and the customer has the
+// payment timeout to pay (docs/03 section 6). The numbers themselves are the
+// ones the customer saw: the bill of the submit, or the shop's revision.
+func approve(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
+	if _, err := tx.Exec(ctx, `UPDATE orders SET frozen_at = $2 WHERE id = $1`, o.ID, clock.Now()); err != nil {
+		return err
+	}
+	t, err := s.shops.TimeoutsOf(ctx, tx, o.ShopID)
+	if err != nil {
+		return err
+	}
+	return s.addTimer(ctx, tx, *o, events.TimerPayment, t.Payment)
 }
 
 func (s *Service) addTimer(ctx context.Context, tx *db.Tx, o orderRow, kind events.TimerKind, after time.Duration) error {

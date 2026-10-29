@@ -20,6 +20,7 @@ import (
 type Shops interface {
 	OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now time.Time) (shop.OrderFacts, error)
 	TimeoutsOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (shop.Timeouts, error)
+	BillFacts(ctx context.Context, tx *db.Tx, id uuid.UUID) (shop.BillFacts, error)
 }
 
 type Delivery interface {

@@ -237,3 +237,28 @@ func TestCanTakeOrders(t *testing.T) {
 		t.Errorf("unknown shop: %v, want NOT_FOUND", err)
 	}
 }
+
+// BillFacts is what a revision of an order in flight reads: the rules, with no
+// readiness check, so it works for a shop that was suspended since the bill was sent.
+func TestBillFacts(t *testing.T) {
+	f := newFixture(t)
+	id := f.makeReady("krishna-super")
+	f.a.Exec(`UPDATE shop_settings SET min_order_cents = 5000, max_lines = 7, min_platform_margin_cents = 300 WHERE shop_id = $1`, id)
+	f.a.Exec(`UPDATE shops SET status = 'SUSPENDED' WHERE id = $1`, id)
+	svc := shop.NewService(f.a.Env.DB, f.a.Secrets, true)
+	read := func(shopID uuid.UUID) (shop.BillFacts, error) {
+		var got shop.BillFacts
+		err := f.a.Env.DB.Tx(context.Background(), db.Scope{UserID: uuid.New(), ShopID: shopID, Role: enum.RoleShopStaff}, func(ctx context.Context, tx *db.Tx) (err error) {
+			got, err = svc.BillFacts(ctx, tx, shopID)
+			return err
+		})
+		return got, err
+	}
+	got, err := read(id)
+	if err != nil || got.MinOrderCents != 5000 || got.MaxLines != 7 || got.MinPlatformMarginCents != 300 || got.Location.Lat == 0 {
+		t.Fatalf("facts = %+v, %v", got, err)
+	}
+	if _, err := read(randomID()); !apperr.Is(err, apperr.NotFound) {
+		t.Errorf("unknown shop: %v, want NOT_FOUND", err)
+	}
+}

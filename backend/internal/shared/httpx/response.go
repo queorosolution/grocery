@@ -24,12 +24,24 @@ type errorDetail struct {
 // JSON writes v as the response body. The body is built first, so a value that
 // cannot be encoded gives a clean 500 instead of a half-written response.
 func JSON(w http.ResponseWriter, status int, v any) {
+	body, ok := encode(w, v)
+	if !ok {
+		return
+	}
+	writeBody(w, status, body)
+}
+
+func encode(w http.ResponseWriter, v any) ([]byte, bool) {
 	body, err := json.Marshal(v)
 	if err != nil {
 		logx.From(context.Background()).Error("response encode failed", "err", err)
 		writeError(w, apperr.New(apperr.Internal), w.Header().Get(requestIDHeader))
-		return
+		return nil, false
 	}
+	return body, true
+}
+
+func writeBody(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)

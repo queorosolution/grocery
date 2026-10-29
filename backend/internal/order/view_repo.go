@@ -96,7 +96,7 @@ func loadData(ctx context.Context, tx *db.Tx, id uuid.UUID) (orderData, bool, er
 func loadItems(ctx context.Context, tx *db.Tx, orderID uuid.UUID) ([]LineView, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT id, name, unit, qty::int, online_price_cents, line_cents, state, sub_pref, revision_no, replaces_item_id
-		FROM order_items WHERE order_id = $1 ORDER BY revision_no, created_at, id`, orderID)
+		FROM order_items WHERE order_id = $1 ORDER BY revision_no, name, id`, orderID)
 	if err != nil {
 		return nil, err
 	}

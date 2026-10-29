@@ -55,13 +55,20 @@ func (s *Service) MarkupBP(ctx context.Context, tx *db.Tx, id uuid.UUID) (bp int
 	return markupOf(ctx, tx, id)
 }
 
-// OrderFacts is what the bill builder reads about a shop.
-type OrderFacts struct {
-	Slug                   string // the order code prefix comes from it
+// BillFacts is what the bill builder reads about a shop's rules. It does not
+// look at payment readiness, so any scope may read it: a revision of an order
+// that is already in flight needs the numbers but not the verdict.
+type BillFacts struct {
 	Location               geo.Point
 	MinOrderCents          int64
 	MinPlatformMarginCents int64
 	MaxLines               int
+}
+
+// OrderFacts is what the bill builder reads about a shop that takes new orders.
+type OrderFacts struct {
+	BillFacts
+	Slug string // the order code prefix comes from it
 	// CartTenant is empty while the shop's cart is not enabled.
 	CartTenant string
 	// DeliveryType and PaymentProvider are copied onto an order when it is submitted.
@@ -74,11 +81,30 @@ type OrderFacts struct {
 // Open is true when CanTakeOrders would pass.
 func (f OrderFacts) Open() bool { return f.Verdict == CanOrder }
 
+// BillFacts reads the shop's pricing rules, whatever its status.
+func (s *Service) BillFacts(ctx context.Context, tx *db.Tx, id uuid.UUID) (BillFacts, error) {
+	var loc geo.Point
+	err := tx.QueryRow(ctx, `SELECT lat, lng FROM shops WHERE id = $1`, id).Scan(&loc.Lat, &loc.Lng)
+	if err != nil {
+		return BillFacts{}, apperr.NotFoundUnless(db.IgnoreNoRows(err), false)
+	}
+	set, err := settingsOf(ctx, tx, id)
+	if err != nil {
+		return BillFacts{}, err
+	}
+	return billFactsOf(loc, set), nil
+}
+
+func billFactsOf(loc geo.Point, set SettingsView) BillFacts {
+	return BillFacts{Location: loc, MinOrderCents: set.MinOrderCents, MinPlatformMarginCents: set.MinPlatformMarginCents, MaxLines: set.MaxLines}
+}
+
 // OrderFacts gathers them inside the caller's transaction. A shop that is not
 // ACTIVE is not found, so a customer cannot tell a draft shop from a missing one.
 func (s *Service) OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now time.Time) (OrderFacts, error) {
 	var f OrderFacts
-	err := tx.QueryRow(ctx, `SELECT slug, lat, lng FROM shops WHERE id = $1 AND status = 'ACTIVE'`, id).Scan(&f.Slug, &f.Location.Lat, &f.Location.Lng)
+	var loc geo.Point
+	err := tx.QueryRow(ctx, `SELECT slug, lat, lng FROM shops WHERE id = $1 AND status = 'ACTIVE'`, id).Scan(&f.Slug, &loc.Lat, &loc.Lng)
 	if err != nil {
 		return f, apperr.NotFoundUnless(db.IgnoreNoRows(err), false)
 	}
@@ -86,7 +112,7 @@ func (s *Service) OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now t
 	if err != nil {
 		return f, err
 	}
-	f.MinOrderCents, f.MinPlatformMarginCents, f.MaxLines = set.MinOrderCents, set.MinPlatformMarginCents, set.MaxLines
+	f.BillFacts = billFactsOf(loc, set)
 	f.DeliveryType, f.PaymentProvider = set.DeliveryType, set.PaymentProvider
 	if set.CartTenantID != nil {
 		f.CartTenant = *set.CartTenantID

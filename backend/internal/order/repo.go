@@ -92,24 +92,38 @@ func insertOrder(ctx context.Context, tx *db.Tx, n newOrder) (id uuid.UUID, code
 	return uuid.Nil, "", fmt.Errorf("order: no free order code after %d tries", insertCodeTries)
 }
 
+// Line states (order_items.state). A live line is ACTIVE or SUBSTITUTE.
+const (
+	lineActive     = "ACTIVE"
+	lineRemoved    = "REMOVED"
+	lineSubstitute = "SUBSTITUTE"
+)
+
 // insertItems writes the lines of the bill, revision 0. The product id and the
 // MRP come from the shop product itself; the prices are the ones Build used.
 func insertItems(ctx context.Context, tx *db.Tx, orderID, shopID uuid.UUID, lines []billing.BillLine) error {
 	for _, l := range lines {
-		tag, err := tx.Exec(ctx, `
-			INSERT INTO order_items (order_id, shop_id, shop_product_id, product_id, name, unit, weight_g, qty, mrp_cents,
-				shop_price_cents, online_price_cents, line_cents, sub_pref)
-			SELECT $1, sp.shop_id, sp.id, sp.product_id, $3, $4, $5, $6, sp.mrp_cents, $7, $8, $9, $10
-			FROM shop_products sp WHERE sp.id = $2 AND sp.shop_id = $11`,
-			orderID, l.ShopProductID, l.Name, l.Unit, l.WeightG, l.Qty, l.ShopPriceCents, l.UnitPriceCents, l.LineCents, l.SubPref, shopID)
-		if err != nil {
+		if _, err := insertLine(ctx, tx, orderID, shopID, 0, l, lineActive, nil); err != nil {
 			return err
-		}
-		if tag.RowsAffected() != 1 {
-			return fmt.Errorf("order: shop product %s is not sold by shop %s", l.ShopProductID, shopID)
 		}
 	}
 	return nil
+}
+
+// insertLine writes one priced line into a revision of the order. replaces is
+// the removed line a substitute stands in for.
+func insertLine(ctx context.Context, tx *db.Tx, orderID, shopID uuid.UUID, revisionNo int, l billing.BillLine, state string, replaces *uuid.UUID) (id uuid.UUID, err error) {
+	err = tx.QueryRow(ctx, `
+		INSERT INTO order_items (order_id, shop_id, shop_product_id, product_id, name, unit, weight_g, qty, mrp_cents,
+			shop_price_cents, online_price_cents, line_cents, sub_pref, state, replaces_item_id, revision_no)
+		SELECT $1, sp.shop_id, sp.id, sp.product_id, $3, $4, $5, $6, sp.mrp_cents, $7, $8, $9, $10, $12, $13, $14
+		FROM shop_products sp WHERE sp.id = $2 AND sp.shop_id = $11 RETURNING id`,
+		orderID, l.ShopProductID, l.Name, l.Unit, l.WeightG, l.Qty, l.ShopPriceCents, l.UnitPriceCents, l.LineCents, l.SubPref, shopID,
+		state, replaces, revisionNo).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, fmt.Errorf("order: shop product %s is not sold by shop %s", l.ShopProductID, shopID)
+	}
+	return id, err
 }
 
 // lockCustomer serialises one customer's submits, so two at once cannot both

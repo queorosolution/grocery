@@ -92,11 +92,18 @@ func Routes(d Deps) []Route {
 		)
 	}
 	if d.Order != nil {
+		const orders = "/console/shops/{shopId}/orders"
+		review := Perm(enum.PermissionOrderReview)
 		table = append(table,
 			Route{nethttp.MethodPost, "/bills/quote", User, d.Order.Quote},
 			Route{nethttp.MethodPost, "/bills", User, d.Order.Submit},
 			Route{nethttp.MethodGet, "/orders", User, d.Order.List},
 			Route{nethttp.MethodGet, "/orders/{id}", User, d.Order.Get},
+			Route{nethttp.MethodPost, "/orders/{id}/accept-revision", User, d.Order.AcceptRevision},
+			Route{nethttp.MethodPost, "/orders/{id}/cancel", User, d.Order.Cancel},
+			Route{nethttp.MethodGet, orders, review, d.Order.ConsoleList},
+			Route{nethttp.MethodGet, orders + "/{id}", review, d.Order.ConsoleGet},
+			Route{nethttp.MethodPost, orders + "/{id}/review", review, d.Order.Review},
 		)
 	}
 	if d.Catalog != nil {

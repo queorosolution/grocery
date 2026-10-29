@@ -251,8 +251,8 @@ Returned by every order endpoint (customer, console, driver), with fields hidden
 |---|---|---|---|---|
 | `GET` | `/orders?limit=&cursor=` | user | — | Own orders, newest first, 20 per page (`limit` up to 50) → `{ "data": [ { id, code, status, shop: { slug, name }, totalCents, itemCount, createdAt } ], "nextCursor": "…" \| null }`. Never lists another customer's orders. |
 | `GET` | `/orders/{id}` | user (own) | — | Order detail |
-| `POST` | `/orders/{id}/accept-revision` | user (own) | `{ "version": 3, "revisionNo": 1 }` | T07 |
-| `POST` | `/orders/{id}/cancel` | user (own) | `{ "version": 3 }` | T06 / T09 / T12 |
+| `POST` | `/orders/{id}/accept-revision` | user (own) | `{ "version": 3, "revisionNo": 1 }` | T07. Returns the order detail. A `revisionNo` that is not the order's is `409 STALE_ORDER`; both numbers are at least 1 (`400`). The bill is frozen and the payment timer starts. |
+| `POST` | `/orders/{id}/cancel` | user (own) | `{ "version": 3 }` | T06 / T09 / T12. Returns the order detail. Allowed in `SUBMITTED`, `REVISED` and `AWAITING_PAYMENT`; from `PAID` on it is `409 INVALID_TRANSITION` (BIZ-10). The slot place is released. |
 | `POST` | `/orders/{id}/coupon` | user (own) | `{ "version": 4, "code": "WELCOME10" }` | Coupon errors from `error_codes` |
 | `DELETE` | `/orders/{id}/coupon` | user (own) | `{ "version": 5 }` | |
 | `POST` | `/orders/{id}/payment` | user (own), `Idempotency-Key` | `{ "version": 5 }` | See below |
@@ -311,9 +311,9 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 
 | Method | Path | Permission | Body / query | Notes |
 |---|---|---|---|---|
-| `GET` | `/orders?status=&cursor=` | `order.review` | `status` comma list | Summary list, `ETag` |
-| `GET` | `/orders/{orderId}` | `order.review` | — | Order detail (console view) |
-| `POST` | `/orders/{orderId}/review` | `order.review` | see below | T02 / T03 / T04 |
+| `GET` | `/orders?status=&limit=&cursor=` | `order.review` | `status` is a comma list of order statuses (a name that does not exist is `400`) | The shop's orders, newest first, 20 per page (`limit` up to 50) → `{ "data": [ { id, code, status, version, customer: { name, phoneMasked }, slot: { startsAt, endsAt } \| null, totalCents, itemCount, createdAt } ], "nextCursor": "…" \| null }`. Sends an `ETag`; a request with `If-None-Match` of that tag gets `304` and no body. `itemCount` counts the lines that still count (not removed ones). The shop is the one in the path: another shop's orders are never listed. |
+| `GET` | `/orders/{id}` | `order.review` | — | Order detail (console view). An order of another shop is `404`, also for an admin on this shop's path. |
+| `POST` | `/orders/{id}/review` | `order.review` | see below | T02 / T03 / T04. Returns the order detail. |
 | `POST` | `/orders/{orderId}/status` | `order.fulfil` | `{ "version", "to": "PICKING" \| "PACKED" \| "OUT_FOR_DELIVERY" }` | T13 / T14 / T15 / T18 |
 | `POST` | `/orders/{orderId}/driver` | `order.assign_driver` | `{ "version", "driverId" }` | Driver must be allowed by `driver_source` |
 | `POST` | `/orders/{orderId}/refund-requests` | `order.request_refund` | `{ "type": "FULL" \| "PARTIAL", "orderItemId", "reason" }` | |
@@ -343,8 +343,12 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 }
 ```
 
-- `APPROVE`: no `changes`. `REJECT`: `reason` required (3–300 chars). `REVISE`: at least one change.
-- Substitutes must be from the same shop, available, and priced by the server.
+- `APPROVE`: no `changes`, no `reason`, no `slotId`. `REJECT`: `reason` required (3–300 chars), no `changes`, no `slotId`. `REVISE`: at least one change (at most 100); `reason` is an optional note (3–300 chars); `slotId` is optional. A field that does not belong to the action is `400`, not ignored. `version` is required (at least 1).
+- Each change names one line of the current bill (`itemId`) and exactly one of `qty` (1–999), `remove` or `substitute`. A line may be named once. A change that leaves everything as it was (`no_change`), one that removes every line (`removes_all`) and a line that is not in the bill (`unknown_item`) are `400` with `fields.changes`.
+- Substitutes must be from the same shop, available, and priced by the server. A product that cannot be sold now (another shop's, hidden, out of stock) is `409 ITEM_UNAVAILABLE`; a quantity over the product's `maxPerOrder` is `QTY_LIMIT`.
+- **Revise** makes revision `revisionNo + 1`: every line is copied into it (a removed one with `state: REMOVED` and no amount, a substitute as a new `SUBSTITUTE` line whose `replacesItemId` is the removed line), and the items, delivery fee, service fee and total are worked out again by the server from today's prices. The earlier revision stays in `previousLines`. With `slotId` the order moves to that window (booked before the old one is released; a full or closed slot is `SLOT_FULL` / `SLOT_CLOSED`, another shop's slot is `404`); a courier order takes no `slotId` (`400`, `not_used`). The revision timer starts.
+- **Approve** freezes the bill (`frozen_at`) and starts the payment timer. **Reject** releases the slot place.
+- A bill that is not `SUBMITTED` cannot be reviewed (`409 INVALID_TRANSITION`); a wrong `version` is `409 STALE_ORDER`, so of two reviews with the same version the second fails (BIZ-17).
 
 ---
 

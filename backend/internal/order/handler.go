@@ -53,3 +53,51 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		return h.svc.Get(r.Context(), sc, id)
 	})
 }
+
+// AcceptRevision handles POST /orders/{id}/accept-revision.
+func (h *Handler) AcceptRevision(w http.ResponseWriter, r *http.Request) {
+	var in AcceptInput
+	routex.User(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.AcceptRevision(r.Context(), sc, id, in)
+	})
+}
+
+// Cancel handles POST /orders/{id}/cancel.
+func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
+	var in CancelInput
+	routex.User(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.Cancel(r.Context(), sc, id, in)
+	})
+}
+
+// ConsoleList handles GET /console/shops/{shopId}/orders. The answer has an ETag.
+func (h *Handler) ConsoleList(w http.ResponseWriter, r *http.Request) {
+	routex.Console[struct{}](w, r, http.StatusOK, false, nil, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
+		q := r.URL.Query()
+		statuses, err := StatusFilter(q.Get("status"))
+		if err != nil {
+			return nil, err
+		}
+		limit, err := httpx.PageLimit(q.Get("limit"), defaultLimit)
+		if err != nil {
+			return nil, err
+		}
+		page, err := h.svc.ConsoleList(r.Context(), sc, statuses, limit, q.Get("cursor"))
+		return httpx.Revalidated{V: page}, err
+	})
+}
+
+// ConsoleGet handles GET /console/shops/{shopId}/orders/{id}.
+func (h *Handler) ConsoleGet(w http.ResponseWriter, r *http.Request) {
+	routex.Console[struct{}](w, r, http.StatusOK, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.Get(r.Context(), sc, id)
+	})
+}
+
+// Review handles POST /console/shops/{shopId}/orders/{id}/review.
+func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
+	var in ReviewInput
+	routex.Console(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+		return h.svc.Review(r.Context(), sc, id, in)
+	})
+}

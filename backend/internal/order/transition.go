@@ -43,6 +43,11 @@ func actorOf(sc db.Scope) actor {
 type TransitionInput struct {
 	Version int
 	Reason  string
+	// ExpectRevision, when set, must be the order's revision: a customer who
+	// accepts a revision accepts that one and no other (T07).
+	ExpectRevision *int
+	// Revise is what the shop changed. Only T03 reads it.
+	Revise *Revision
 }
 
 // Transition is the only way an order changes status after it was submitted
@@ -73,7 +78,7 @@ func (s *Service) transition(ctx context.Context, tx *db.Tx, scope db.Scope, ord
 	if err != nil || !found || !inScope(scope, o) {
 		return apperr.NotFoundUnless(err, found && inScope(scope, o))
 	}
-	if in.Version != o.Version {
+	if in.Version != o.Version || (in.ExpectRevision != nil && *in.ExpectRevision != o.RevisionNo) {
 		return apperr.New(apperr.StaleOrder)
 	}
 	who := actorOf(scope)
@@ -91,7 +96,7 @@ func (s *Service) transition(ctx context.Context, tx *db.Tx, scope db.Scope, ord
 	if !built {
 		return errNotBuilt(t.ID)
 	}
-	if err := hook(ctx, s, tx, o, in); err != nil {
+	if err := hook(ctx, s, tx, &o, in); err != nil {
 		return err
 	}
 	tag, err := tx.Exec(ctx, `
@@ -137,7 +142,7 @@ func (s *Service) record(ctx context.Context, tx *db.Tx, o orderRow, from *enum.
 func inScope(sc db.Scope, o orderRow) bool {
 	switch {
 	case sc.Privileged:
-		return true
+		return sc.ShopID == uuid.Nil || o.ShopID == sc.ShopID // an admin on a shop's console sees that shop only
 	case sc.Role == enum.RoleCustomer:
 		return o.CustomerID == sc.UserID
 	case sc.Role == enum.RoleShopDriver || sc.Role == enum.RolePlatformDriver:
