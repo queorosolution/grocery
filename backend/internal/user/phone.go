@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"gp/internal/notify"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/clock"
@@ -117,4 +119,11 @@ func (s *Service) VerifyPhoneCode(ctx context.Context, scope db.Scope, code stri
 		return err
 	}
 	return denied
+}
+
+// PhoneVerified says whether the user has confirmed a phone number.
+func (s *Service) PhoneVerified(ctx context.Context, tx *db.Tx, userID uuid.UUID) (bool, error) {
+	var ok bool
+	err := tx.QueryRow(ctx, `SELECT phone_verified_at IS NOT NULL FROM users WHERE id = $1`, userID).Scan(&ok)
+	return ok, err
 }

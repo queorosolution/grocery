@@ -10,6 +10,7 @@ import (
 	"gp/internal/catalog"
 	"gp/internal/connector"
 	"gp/internal/delivery"
+	"gp/internal/order"
 	"gp/internal/pricing"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
@@ -44,6 +45,8 @@ type Deps struct {
 	Catalog *catalog.Handler
 	Pricing *pricing.Handler
 	Upload  *upload.Handler
+	// Order serves the customer's bills and orders.
+	Order *order.Handler
 	// Connector serves the shop database connector (admin only).
 	Connector    *connector.Handler
 	Audit        *audit.Handler

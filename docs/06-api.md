@@ -182,7 +182,7 @@ Address rules: `label` 1–30, `line1` 3–160, `landmark` ≤ 120 characters; t
 ## 6. Bills and orders (customer)
 
 ### `POST /bills/quote` — user
-No database writes.
+No database writes. The quantities are the ones in the cart; the body only chooses what to do when a line is not available. A body with a quantity, a price or any other unknown field is `400`. `lines` may be left out; every cart line is then `SIMILAR`. An `itemId` that is not in the cart is `400`.
 
 ```json
 { "shopId": "…", "cartId": "crt_…", "addressId": "…", "slotId": "…optional…", "lines": [ { "itemId": "…shopProductId…", "subPref": "SIMILAR" } ] }
@@ -201,6 +201,13 @@ Response (also the shape of a submitted order's money part):
   "checks": { "shopOpen": true, "inRange": true, "minOrderMet": true, "phoneVerified": false }
 }
 ```
+
+Notes:
+- `slots` lists the open windows of the next 7 days; a full one has `remaining: 0` and is still listed. Each also has `cutoffAt`.
+- `slotId` is optional. If it is sent it is checked: another shop's slot is `404`; closed or past its cutoff is `SLOT_CLOSED`; full is `SLOT_FULL`.
+- A line that is not for sale is in `excluded` (`ITEM_UNAVAILABLE`) and is not in any total. Another shop's product has no name there.
+- Out of range gives `checks.inRange: false` and a delivery fee of 0, so the page can still show the bill.
+- Errors: `CART_EMPTY`, `CART_WRONG_SHOP`, `CART_UNAVAILABLE`, `QTY_LIMIT`, `SLOT_FULL`, `SLOT_CLOSED`, `VALIDATION_ERROR`. A shop that is not active, and an address of someone else, are `404`.
 
 ### `POST /bills` — user, `Idempotency-Key` required
 Body: quote body + `"slotId"` (required for `SLOT`), `"note"`.

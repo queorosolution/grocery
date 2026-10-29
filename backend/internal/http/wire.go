@@ -16,6 +16,7 @@ import (
 	"gp/internal/events/eventsaws"
 	"gp/internal/notify"
 	"gp/internal/notify/logchannel"
+	"gp/internal/order"
 	"gp/internal/pricing"
 	"gp/internal/shared/config"
 	"gp/internal/shared/db"
@@ -51,7 +52,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	pricingSvc := pricing.NewService(database, shopSvc)
 	shopSvc.SetRepricer(pricingSvc)
 	catalogSvc := catalog.NewService(database, shopSvc, deliverySvc, pricingSvc, cfg.ImgBaseURL)
-	shopSvc.SetCarts(cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins), catalogSvc)
+	carts := cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins)
+	shopSvc.SetCarts(carts, catalogSvc)
 	schedules, invoker, err := connaws.New(ctx, cfg)
 	if err != nil {
 		database.Close()
@@ -64,6 +66,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	sms := notify.New(logchannel.New(cfg.IsLocal())) // real SMS comes with P25
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)
 	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
+	orderSvc := order.NewService(database, shopSvc, deliverySvc, userSvc, catalogSvc, carts)
 	return Deps{
 		Config:      cfg,
 		Auth:        auth.NewHandler(authSvc, cfg),
@@ -74,6 +77,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Catalog:     catalog.NewHandler(catalogSvc),
 		Pricing:     pricing.NewHandler(pricingSvc),
 		Upload:      upload.NewHandler(uploadSvc, teamSvc),
+		Order:       order.NewHandler(orderSvc),
 		Connector:   connectorHandler,
 		Audit:       audit.NewHandler(database),
 		Memberships: teamSvc,

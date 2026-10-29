@@ -167,3 +167,10 @@ func (s *Service) DeleteAddress(ctx context.Context, scope db.Scope, id uuid.UUI
 		return promoteNewest(ctx, tx, scope.UserID)
 	})
 }
+
+// AddressFor reads one of the caller's own addresses inside the caller's
+// transaction, without locking it. Another user's address is not found.
+func (s *Service) AddressFor(ctx context.Context, tx *db.Tx, userID, id uuid.UUID) (Address, error) {
+	a, found, err := addressOf(ctx, tx, userID, id)
+	return a, apperr.NotFoundUnless(err, found)
+}

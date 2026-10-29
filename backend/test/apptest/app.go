@@ -28,6 +28,7 @@ import (
 	"gp/internal/events"
 	apihttp "gp/internal/http"
 	"gp/internal/notify"
+	"gp/internal/order"
 	"gp/internal/pricing"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/config"
@@ -132,6 +133,7 @@ func New(t *testing.T) *App {
 		Catalog:   catalog.NewHandler(catalogSvc),
 		Pricing:   pricing.NewHandler(pricingSvc),
 		Upload:    upload.NewHandler(uploadSvc, teamSvc),
+		Order:     order.NewHandler(order.NewService(env.DB, shopSvc, deliverySvc, userSvc, catalogSvc, carts)),
 		Connector: connectorHandler,
 		Audit:     audit.NewHandler(env.DB),
 		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{"POST " + apihttp.Base + apihttp.TriggerPattern: connectorHandler.VerifyTrigger}),

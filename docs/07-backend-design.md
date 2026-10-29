@@ -195,6 +195,16 @@ Used by: quote, submit, revise, accept revision, coupon apply / remove. **No oth
 
 Steps: validate lines (available, qty 1..max_per_order, ≤ `max_lines`) → line totals → items total → service fee (`max(0, min_platform_margin − margin)`) → weight → distance → delivery fee → coupon discount (cap by `max_discount`, by items total, and by platform income unless `allow_loss`) → total → checks (min order).
 
+### 8.1 How the quote is built (P18)
+
+- `order.Service.Quote` loads the facts and hands them to `billing.Build`. It writes nothing.
+- Quantities come from the **cart** (read with `cartclient.GetCart` in the shop's own cart tenant). The request only says what to do when a line is not available (`subPref`). A quantity in the request is refused.
+- Prices come from `shop_products` through `catalog.BillProducts`. The price the cart shows only sets `priceChanged`.
+- A cart line that is not one of this shop's products (or has no item id) is listed as `excluded`, with no name.
+- The shop facts come from `shop.OrderFacts`, the fee rule from `delivery.RuleFor`, the windows from `delivery.OpenSlots`, a chosen slot from `delivery.CheckSlot` (same codes as `Book`, no place taken).
+- Reads of the shop (payment readiness reads `payment_accounts`) use the system scope. Nothing of the caller is read there. The address and phone are read in the caller's own scope.
+- A cart that is not in the shop's tenant is `CART_WRONG_SHOP`; a missing cart is the same answer. A cart service that cannot be reached, or a shop with no cart tenant, is `CART_UNAVAILABLE`.
+
 **Quantities:** phase 1 quantities are whole numbers (packs). `unit` + `size_label` describe the pack. Loose weighed items are phase 3.
 
 ## 9. Order service

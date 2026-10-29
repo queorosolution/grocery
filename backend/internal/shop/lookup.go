@@ -8,6 +8,7 @@ import (
 
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/db"
+	"gp/internal/shared/geo"
 )
 
 // What other modules ask of a shop, inside their own transaction.
@@ -51,4 +52,40 @@ func (s *Service) ActiveLocations(ctx context.Context, tx *db.Tx) ([]Location, e
 // transaction. found is false for an unknown shop.
 func (s *Service) MarkupBP(ctx context.Context, tx *db.Tx, id uuid.UUID) (bp int, found bool, err error) {
 	return markupOf(ctx, tx, id)
+}
+
+// OrderFacts is what the bill builder reads about a shop.
+type OrderFacts struct {
+	Location               geo.Point
+	MinOrderCents          int64
+	MinPlatformMarginCents int64
+	MaxLines               int
+	// CartTenant is empty while the shop's cart is not enabled.
+	CartTenant string
+	// Open is true when the shop is accepting orders now (CanTakeOrders would pass).
+	Open bool
+}
+
+// OrderFacts gathers them inside the caller's transaction. A shop that is not
+// ACTIVE is not found, so a customer cannot tell a draft shop from a missing one.
+func (s *Service) OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now time.Time) (OrderFacts, error) {
+	var f OrderFacts
+	err := tx.QueryRow(ctx, `SELECT lat, lng FROM shops WHERE id = $1 AND status = 'ACTIVE'`, id).Scan(&f.Location.Lat, &f.Location.Lng)
+	if err != nil {
+		return f, apperr.NotFoundUnless(db.IgnoreNoRows(err), false)
+	}
+	set, err := settingsOf(ctx, tx, id)
+	if err != nil {
+		return f, err
+	}
+	f.MinOrderCents, f.MinPlatformMarginCents, f.MaxLines = set.MinOrderCents, set.MinPlatformMarginCents, set.MaxLines
+	if set.CartTenantID != nil {
+		f.CartTenant = *set.CartTenantID
+	}
+	snap, found, err := snapshotOf(ctx, tx, id, now, s.manualEnabled)
+	if err != nil || !found {
+		return f, apperr.NotFoundUnless(err, found)
+	}
+	f.Open = snap.canTakeOrders(now) == CanOrder
+	return f, nil
 }
