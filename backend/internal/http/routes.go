@@ -36,6 +36,7 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPost, "/auth/totp/verify", User, d.Auth.TotpVerify},
 			Route{nethttp.MethodGet, "/admin/users", Admin, d.Auth.Users},
 			Route{nethttp.MethodPatch, "/admin/users/{id}", Admin, d.Auth.SetUserStatus},
+			Route{nethttp.MethodPost, "/admin/users/{id}/restore", Admin, d.Auth.RestoreUser},
 		)
 	}
 	if d.Team != nil {

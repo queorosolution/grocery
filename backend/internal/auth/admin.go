@@ -96,3 +96,25 @@ func (s *Service) SetUserStatus(ctx context.Context, scope db.Scope, id uuid.UUI
 		})
 	})
 }
+
+// RestoreUser brings a deleted account back (soft delete keeps the row). The name and e-mail were
+// never removed, so the person signs in as before. What the delete wiped (see Wiper) does not come back.
+func (s *Service) RestoreUser(ctx context.Context, scope db.Scope, id uuid.UUID) error {
+	return s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
+		var found uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 AND status = 'DELETED' FOR UPDATE`, id).Scan(&found)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.New(apperr.NotFound)
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE users SET status = 'ACTIVE' WHERE id = $1`, id); err != nil {
+			return err
+		}
+		return audit.Write(ctx, tx, scope, audit.Entry{
+			Action: "user.restore", Entity: "user", EntityID: id.String(),
+			Before: map[string]enum.UserStatus{"status": enum.UserStatusDeleted}, After: map[string]enum.UserStatus{"status": enum.UserStatusActive},
+		})
+	})
+}

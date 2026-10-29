@@ -48,3 +48,22 @@ func (h *Handler) SetUserStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// RestoreUser handles POST /admin/users/{id}/restore.
+func (h *Handler) RestoreUser(w http.ResponseWriter, r *http.Request) {
+	scope, ok := authz.ScopeFrom(r.Context())
+	if !ok {
+		httpx.Error(w, r, apperr.New(apperr.Forbidden))
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		httpx.Error(w, r, apperr.New(apperr.NotFound))
+		return
+	}
+	if err := h.svc.RestoreUser(r.Context(), scope, id); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

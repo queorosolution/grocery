@@ -126,3 +126,35 @@ func TestDeleteAccount_OtherPeopleAreUntouched(t *testing.T) {
 		t.Errorf("another person's addresses = %d, want 1", n)
 	}
 }
+
+// An admin can bring a deleted account back; the name and e-mail were kept, so sign-in works again.
+func TestDeleteAccount_AdminCanRestore(t *testing.T) {
+	f := newFixture(t)
+	f.me.OK(http.MethodDelete, "/me", deleteBody)
+	var id string
+	if err := f.a.Env.Owner.QueryRow(context.Background(), `SELECT id::text FROM users WHERE email = 'nimal@example.com'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+
+	// An account that is not deleted is a 404, and so is a customer asking.
+	other := f.a.As(f.a.SignedIn(fakes.Claims{Sub: "kamal", Email: "kamal@example.com", Name: "Kamal"}))
+	var otherID string
+	if err := f.a.Env.Owner.QueryRow(context.Background(), `SELECT id::text FROM users WHERE email = 'kamal@example.com'`).Scan(&otherID); err != nil {
+		t.Fatal(err)
+	}
+	f.admin().Expect(http.MethodPost, "/admin/users/"+otherID+"/restore", "", http.StatusNotFound, "NOT_FOUND")
+	other.Expect(http.MethodPost, "/admin/users/"+id+"/restore", "", http.StatusForbidden, "")
+
+	if w := f.admin().Call(http.MethodPost, "/admin/users/"+id+"/restore", ""); w.Code != http.StatusNoContent {
+		t.Fatalf("restore = %d %s", w.Code, w.Body)
+	}
+	if f.userStatus() != "ACTIVE" {
+		t.Errorf("status = %s, want ACTIVE", f.userStatus())
+	}
+	if f.a.Count(`SELECT count(*) FROM audit_log WHERE action = 'user.restore'`) != 1 {
+		t.Error("no audit row for the restore")
+	}
+	if r := f.a.SignIn(fakes.Claims{Sub: "nimal", Email: "nimal@example.com"}); r.Code != http.StatusOK {
+		t.Errorf("sign-in after restore = %d, want 200", r.Code)
+	}
+}
