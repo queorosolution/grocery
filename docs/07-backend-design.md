@@ -26,7 +26,7 @@ flowchart LR
 |---|---|---|
 | Read config at start-up | `config.Load()` | `internal/shared/config` |
 | Get a secret | `secrets.Getter.Get(ctx, name)`; the `*secrets.Client` is built once at start-up and passed in (cached 5 min) | `internal/shared/secrets` |
-| Run SQL in a transaction with scope | `db.Tx(ctx, scope, fn)` | `internal/shared/db` |
+| Run SQL in a transaction with scope | `database.Tx(ctx, scope, fn)` (`*db.DB` is created once at start-up with `db.Connect` and passed in; `fn` gets a `*db.Tx`) | `internal/shared/db` |
 | Run work after commit | `tx.AfterCommit(fn)` | `internal/shared/db` |
 | Return an error | `apperr.New(apperr.SlotFull)`, `apperr.Validation(fields)` | `internal/shared/apperr` |
 | Decode JSON body | `httpx.Decode(r, &in)` (64 KB, unknown fields rejected) | `internal/shared/httpx` |
