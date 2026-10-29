@@ -61,3 +61,10 @@ func TestTokenIsLongAndDifferent(t *testing.T) {
 		t.Fatalf("bad tokens %q %q", a, b)
 	}
 }
+
+func TestRequestID(t *testing.T) {
+	a := Request()
+	if !strings.HasPrefix(a, "req_") || len(a) != 4+26 || a == Request() {
+		t.Fatalf("bad request id %q", a)
+	}
+}

@@ -1,5 +1,5 @@
 # Run from the repo root. Generated files are committed, so CI runs `make gen` and checks for no diff.
-.PHONY: gen check-contracts test test-schema migrate-local lint
+.PHONY: gen check-contracts test test-schema migrate-local lint dev-api
 
 gen:
 	cd backend && go run ./cmd/gen -contracts ../contracts -backend . -web ../web
@@ -23,3 +23,7 @@ lint:
 	@test -z "$$(gofmt -l backend)" || (gofmt -l backend; echo "gofmt: run gofmt -w"; exit 1)
 	cd backend && go vet ./...
 	@if [ -f web/package.json ]; then cd web && npm run lint --if-present; fi
+
+# Runs the API on :8080 (needs a .env copied from .env.example; refuses to run unless APP_ENV=local).
+dev-api:
+	cd backend && ENV_FILE=../.env go run ./cmd/devserver

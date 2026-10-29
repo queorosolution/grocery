@@ -23,10 +23,16 @@ var (
 )
 
 // Event returns a sortable id for an outbox event: evt_<ULID>.
-func Event() string {
+func Event() string { return prefixed("evt_") }
+
+// Request returns an id for one HTTP request: req_<ULID>. It is sent back in
+// X-Request-Id and in error bodies so a user report can be found in the logs.
+func Request() string { return prefixed("req_") }
+
+func prefixed(prefix string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	return "evt_" + ulid.MustNew(ulid.Timestamp(clock.Now()), entropy).String()
+	return prefix + ulid.MustNew(ulid.Timestamp(clock.Now()), entropy).String()
 }
 
 // OrderCode returns <PREFIX>-<6 Crockford chars>, e.g. KS-7Q2M9X. The caller
