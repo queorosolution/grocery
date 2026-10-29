@@ -1,18 +1,15 @@
 import { Phone } from "lucide-react";
 import { Card } from "@/components/ui";
+import { dialable, mapUrl } from "@/lib/contact";
 import { t } from "@/lib/i18n";
 import { formatSlot } from "@/lib/time";
 import type { ShopOrder } from "./types";
-
-// Digits and a leading plus only: the number comes from our API, but it goes into a link.
-const dialable = (phone: string) => phone.replace(/[^\d+]/g, "");
 
 /** Who the order is for, where it goes and when. The full phone shows only while picking and delivering. */
 export function OrderSummary({ order }: { order: ShopOrder }) {
   const { customer, address } = order;
   const phone = customer?.phone ? dialable(customer.phone) : null;
-  const pin = address.lat !== undefined && address.lng !== undefined
-    ? `https://www.google.com/maps/search/?api=1&query=${address.lat},${address.lng}` : null;
+  const pin = mapUrl(address.lat, address.lng);
   return (
     <Card className="flex flex-col gap-3 p-4 text-sm">
       <div>
