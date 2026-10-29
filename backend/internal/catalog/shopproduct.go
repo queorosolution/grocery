@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ func (s *Service) ShopProducts(ctx context.Context, scope db.Scope, shopID uuid.
 		rows, err = listShopProducts(ctx, tx, shopID, strings.TrimSpace(q), available, after)
 		return err
 	})
-	return cut(rows, func(sp ShopProduct) cursor { return cursor{Name: sp.Name, ID: sp.ID} }), err
+	return cut(rows, func(sp ShopProduct) fmt.Stringer { return cursor{Name: sp.Name, ID: sp.ID} }), err
 }
 
 // AddShopProduct puts a master product on sale in a shop by hand (MANUAL).

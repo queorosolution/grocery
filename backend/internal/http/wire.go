@@ -46,7 +46,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	deliverySvc := delivery.NewService(database, shopSvc)
 	pricingSvc := pricing.NewService(database, shopSvc)
 	shopSvc.SetRepricer(pricingSvc)
-	catalogSvc := catalog.NewService(database, shopSvc, pricingSvc, cfg.ImgBaseURL)
+	catalogSvc := catalog.NewService(database, shopSvc, deliverySvc, pricingSvc, cfg.ImgBaseURL)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := notify.New(logchannel.New(cfg.IsLocal())) // real SMS comes with P25
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)

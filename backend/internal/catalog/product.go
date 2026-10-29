@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -36,7 +37,7 @@ func (s *Service) Products(ctx context.Context, scope db.Scope, q, cur string) (
 		rows, err = listProducts(ctx, tx, strings.TrimSpace(q), after)
 		return err
 	})
-	return cut(rows, func(p Product) cursor { return cursor{Name: p.Name, ID: p.ID} }), err
+	return cut(rows, func(p Product) fmt.Stringer { return cursor{Name: p.Name, ID: p.ID} }), err
 }
 
 func (s *Service) CreateProduct(ctx context.Context, scope db.Scope, in ProductInput) (Product, error) {

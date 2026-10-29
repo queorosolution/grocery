@@ -96,7 +96,7 @@ func New(t *testing.T) *App {
 	deliverySvc := delivery.NewService(env.DB, shopSvc)
 	pricingSvc := pricing.NewService(env.DB, shopSvc)
 	shopSvc.SetRepricer(pricingSvc)
-	catalogSvc := catalog.NewService(env.DB, shopSvc, pricingSvc, cfg.ImgBaseURL)
+	catalogSvc := catalog.NewService(env.DB, shopSvc, deliverySvc, pricingSvc, cfg.ImgBaseURL)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
