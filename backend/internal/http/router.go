@@ -7,7 +7,9 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/catalog"
 	"gp/internal/delivery"
+	"gp/internal/pricing"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
 	"gp/internal/shared/authz"
@@ -15,6 +17,7 @@ import (
 	"gp/internal/shared/httpx"
 	"gp/internal/shop"
 	"gp/internal/team"
+	"gp/internal/upload"
 	"gp/internal/user"
 )
 
@@ -34,7 +37,12 @@ type Deps struct {
 	// Delivery serves fee rules and delivery slots.
 	Delivery *delivery.Handler
 	// User serves the signed-in customer's name, phone and addresses.
-	User         *user.Handler
+	User *user.Handler
+	// Catalog serves categories, products and a shop's own products; Pricing the
+	// category markups; Upload the image upload links.
+	Catalog      *catalog.Handler
+	Pricing      *pricing.Handler
+	Upload       *upload.Handler
 	Audit        *audit.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
 	// Memberships loads the caller's roles for admin and perm: routes. Nil

@@ -19,13 +19,16 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/catalog"
 	"gp/internal/delivery"
 	apihttp "gp/internal/http"
 	"gp/internal/notify"
+	"gp/internal/pricing"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/config"
 	"gp/internal/shop"
 	"gp/internal/team"
+	"gp/internal/upload"
 	"gp/internal/user"
 	"gp/test/fakes"
 	"gp/test/testdb"
@@ -36,6 +39,7 @@ const (
 	WebOrigin  = "https://app.example.test"
 	AdminEmail = "boss@example.test"
 	DefaultIP  = "198.51.100.1"
+	ImgBase    = "https://img.example.test"
 )
 
 // Secrets is an in-memory secret store; the preset values are base64 of 32 bytes.
@@ -77,17 +81,23 @@ func New(t *testing.T) *App {
 	cfg := &config.Config{
 		Env: config.EnvDev, APIBaseURL: "https://api.example.test", AllowedOrigins: []string{WebOrigin},
 		GoogleClientID: ClientID, SuperAdminEmails: []string{AdminEmail}, PlatformName: "TestShop",
+		ImgBaseURL: ImgBase, R2AccountID: "test-account", R2Bucket: "test-bucket",
 	}
 	sec := &Secrets{values: map[string]string{
 		"enc/key":    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 		"jwt/key":    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 		"ip/pepper":  "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
 		"otp/pepper": "b3RwcGVwcGVyb3RwcGVwcGVyb3RwcGVwcGVyb3A=",
+		"r2/keys":    `{"accessKeyId":"test-access-key","secretAccessKey":"test-secret-key"}`,
 	}}
 	teamSvc := team.NewService(env.DB)
 	svc := auth.NewService(cfg, env.DB, sec, auth.NewOIDCVerifier(oidc.Issuer, ClientID), teamSvc)
 	shopSvc := shop.NewService(env.DB, sec, true)
 	deliverySvc := delivery.NewService(env.DB, shopSvc)
+	pricingSvc := pricing.NewService(env.DB, shopSvc)
+	shopSvc.SetRepricer(pricingSvc)
+	catalogSvc := catalog.NewService(env.DB, shopSvc, pricingSvc, cfg.ImgBaseURL)
+	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
 	deps := apihttp.Deps{
@@ -95,6 +105,9 @@ func New(t *testing.T) *App {
 		Shop:     shop.NewHandler(shopSvc),
 		Delivery: delivery.NewHandler(deliverySvc),
 		User:     user.NewHandler(userSvc, svc),
+		Catalog:  catalog.NewHandler(catalogSvc),
+		Pricing:  pricing.NewHandler(pricingSvc),
+		Upload:   upload.NewHandler(uploadSvc, teamSvc),
 		Audit:    audit.NewHandler(env.DB),
 	}
 	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms}
@@ -205,7 +218,8 @@ func (a *App) Exec(query string, args ...any) {
 	}
 }
 
-// SeedShop inserts a shop row and returns its id.
+// SeedShop inserts a shop row with its default settings (as shop.Create does)
+// and returns its id.
 func (a *App) SeedShop(slug string) uuid.UUID {
 	a.T.Helper()
 	var id uuid.UUID
@@ -214,6 +228,7 @@ func (a *App) SeedShop(slug string) uuid.UUID {
 	if err != nil {
 		a.T.Fatal(err)
 	}
+	a.Exec(`INSERT INTO shop_settings (shop_id) VALUES ($1)`, id)
 	return id
 }
 

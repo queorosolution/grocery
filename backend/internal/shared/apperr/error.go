@@ -51,3 +51,15 @@ func Is(err error, code Code) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Code == code
 }
+
+// NotFoundUnless is for a lookup that reports "found" separately: it passes a
+// database error through, answers NOT_FOUND for a missing row, and nil otherwise.
+func NotFoundUnless(err error, found bool) error {
+	if err != nil {
+		return err
+	}
+	if !found {
+		return New(NotFound)
+	}
+	return nil
+}

@@ -145,3 +145,28 @@ func TestIsMobile(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPSURLUnder(t *testing.T) {
+	const base = "https://img.example.test"
+	tests := map[string]bool{
+		base + "/PRODUCT_IMAGE/a.webp":  true,
+		base + "/a.png":                 true,
+		base:                            false,
+		"http://img.example.test/a.png": false,
+		"https://img.example.test.evil.example/a.png": false,
+		"https://img.example.test@evil.example/a.png": false,
+		"https://evil.example/img.example.test/a.png": false,
+		base + "/../a.png":                            false,
+		"javascript:alert(1)":                         false,
+		"":                                            false,
+	}
+	for in, ok := range tests {
+		err := New().HTTPSURLUnder("u", in, base, 300).Err()
+		if (err == nil) != ok {
+			t.Errorf("%q accepted = %v, want %v", in, err == nil, ok)
+		}
+	}
+	if New().HTTPSURLUnder("u", base+"/a.png", "", 300).Err() == nil {
+		t.Error("an empty base accepted a URL")
+	}
+}

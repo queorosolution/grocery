@@ -86,6 +86,29 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodDelete, "/me/addresses/{id}", User, d.User.DeleteAddress},
 		)
 	}
+	if d.Catalog != nil {
+		const products = "/console/shops/{shopId}/products"
+		table = append(table,
+			Route{nethttp.MethodGet, "/admin/categories", Admin, d.Catalog.Categories},
+			Route{nethttp.MethodPost, "/admin/categories", Admin, d.Catalog.CreateCategory},
+			Route{nethttp.MethodPatch, "/admin/categories/{id}", Admin, d.Catalog.UpdateCategory},
+			Route{nethttp.MethodGet, "/admin/products", Admin, d.Catalog.Products},
+			Route{nethttp.MethodPost, "/admin/products", Admin, d.Catalog.CreateProduct},
+			Route{nethttp.MethodPatch, "/admin/products/{id}", Admin, d.Catalog.UpdateProduct},
+			Route{nethttp.MethodPost, "/admin/shops/{id}/products", Admin, d.Catalog.AddShopProduct},
+			Route{nethttp.MethodGet, products, Perm(enum.PermissionOrderReview), d.Catalog.ShopProducts},
+			Route{nethttp.MethodPatch, products + "/{id}", Perm(enum.PermissionProductEdit), d.Catalog.UpdateShopProduct},
+		)
+	}
+	if d.Pricing != nil {
+		table = append(table,
+			Route{nethttp.MethodGet, "/admin/shops/{id}/category-markups", Admin, d.Pricing.Markups},
+			Route{nethttp.MethodPut, "/admin/shops/{id}/category-markups", Admin, d.Pricing.SetMarkups},
+		)
+	}
+	if d.Upload != nil {
+		table = append(table, Route{nethttp.MethodPost, "/uploads/presign", User, d.Upload.Presign})
+	}
 	if d.Audit != nil {
 		table = append(table, Route{nethttp.MethodGet, "/admin/audit", Admin, d.Audit.List})
 	}
