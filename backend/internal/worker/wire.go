@@ -8,12 +8,16 @@ import (
 	"gp/internal/catalog"
 	"gp/internal/events"
 	"gp/internal/events/eventsaws"
+	"gp/internal/notify/consumer"
+	notifysetup "gp/internal/notify/setup"
+	"gp/internal/order"
 	"gp/internal/shared/config"
 	"gp/internal/shared/db"
 	"gp/internal/shared/logx"
 	"gp/internal/shared/secrets"
 	"gp/internal/shop"
 	"gp/internal/site"
+	"gp/internal/user"
 )
 
 // Wire builds the worker and returns a function that closes what it opened.
@@ -34,12 +38,22 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Worker, 
 	}
 	publisher := events.NewPublisher(database, queue, sched)
 
+	notifySvc, err := notifysetup.Service(cfg, database, sec)
+	if err != nil {
+		database.Close()
+		return nil, nil, fmt.Errorf("wire: %w", err)
+	}
+	shopSvc := shop.NewService(database, sec, cfg.FeatureManualPay)
+
 	registry := events.NewRegistry()
 	site.NewRebuilder(sec).Register(registry)
-	catalog.NewCartSync(shop.NewService(database, sec, cfg.FeatureManualPay), cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins)).
-		Register(registry)
+	catalog.NewCartSync(shopSvc, cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins)).Register(registry)
 	catalog.NewBuyAgain().Register(registry)
-	// The other consumers (notify, stats) register here when their modules arrive.
+	// The texts only read: the order service needs the database and the key that
+	// seals delivery codes, and the user service needs nothing but the database.
+	consumer.New(notifySvc, order.NewService(order.Deps{DB: database, Secrets: sec}), shopSvc, user.NewService(database, sec, nil, nil, nil, ""),
+		consumer.Config{App: cfg.PlatformName, Domain: cfg.PlatformDomain, AdminPhone: cfg.AdminAlertPhone}).Register(registry)
+	// The stats consumers register here when their module arrives.
 
 	return New(database, registry, Jobs(publisher)), database.Close, nil
 }

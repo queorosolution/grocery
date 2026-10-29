@@ -278,6 +278,13 @@ Inside one `db.Tx`:
 - **Admin orders (`order/admin.go`):** `AdminList` is the console list with no shop filter (same keyset page, plus `q`); `AdminTransition` is `Transition` with a required reason, and refuses `PAID`.
 - **Shared:** `ids.Ref` turns the Nil uuid into SQL NULL for optional ids.
 
+**Built in P25 (`internal/notify` and its `consumer`, `sms`, `walink`, `logchannel`, `setup` packages):**
+- **Send pipeline (`notify.Service.Send`):** render the template → find the channel → skip if the same (event, channel, template, masked recipient) was already sent → check the daily SMS cap → send → record → warn at 80%. The record keeps a masked recipient (`+9477***4567`) and never the text.
+- **Cap:** `SMS_DAILY_CAP` counts SENT SMS of the Colombo day, not the admin alerts. At the cap `Send` returns `ErrCapReached`; the OTP route turns it into `429 RATE_LIMITED`, the event consumers swallow it (the event is not retried). Reaching 80% and 100% sends one admin alert a day each (advisory lock).
+- **Consumers (`notify/consumer`):** one consumer per event type named `notify.<type>`, from a `rules` map (event → who gets which template). The customer and the shop desk follow the shop's `notify_channels` (`SMS`, `WA_LINK`); admin alerts are always SMS to `ADMIN_ALERT_PHONE`. The delivery code is read from `order.NotifyFacts` at send time, never from the event, and is skipped if the order is no longer out for delivery.
+- **Channels:** `sms` is a generic https JSON adapter (key in SSM `sms/api-key`, no redirects, errors carry no provider body). `walink` only builds a `wa.me` link. Outside `prod` the log channel is used. The WhatsApp Cloud API is phase 2.
+- **Template safety:** `{domain}` and `{id}` slots are strict (error, never cut); other slots lose control characters and `{}:/@` and are cut at a per-slot limit; the text is at most 160 characters. `PLATFORM_DOMAIN` is at most 20 characters.
+
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 
 **Order codes:** `<SHOPPREFIX>-<6 chars>` from Crockford base32, e.g. `KS-7Q2M9X`. Prefix from shop slug (2 letters). Unique index retries once on clash.

@@ -23,6 +23,13 @@ func Now() time.Time {
 // Colombo converts t to shop-local time. Opening hours and slots use it.
 func Colombo(t time.Time) time.Time { return t.In(colombo) }
 
+// StartOfDay is midnight, Colombo time, of the day t falls in. "Today" for daily
+// caps and reports means this day, not the UTC one.
+func StartOfDay(t time.Time) time.Time {
+	c := Colombo(t)
+	return time.Date(c.Year(), c.Month(), c.Day(), 0, 0, 0, 0, colombo)
+}
+
 // Freeze makes Now return t until the returned function is called. For tests.
 func Freeze(t time.Time) (restore func()) {
 	f := func() time.Time { return t }

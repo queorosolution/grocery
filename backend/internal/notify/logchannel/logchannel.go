@@ -21,7 +21,7 @@ func New(showText bool) *Channel { return &Channel{showText: showText} }
 func (c *Channel) Send(ctx context.Context, m notify.Message) (string, int, error) {
 	attrs := []any{"template", m.Template, "to", m.To}
 	if c.showText {
-		text, err := notify.Render(m.Template, m.Vars)
+		text, err := notify.TextOf(m)
 		if err != nil {
 			return "", 0, err
 		}

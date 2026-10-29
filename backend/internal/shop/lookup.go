@@ -147,3 +147,31 @@ func (s *Service) DriverSourceOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (
 	err := tx.QueryRow(ctx, `SELECT driver_source FROM shop_settings WHERE shop_id = $1`, id).Scan(&src)
 	return src, apperr.NotFoundUnless(db.IgnoreNoRows(err), err == nil)
 }
+
+// NotifyTarget is who the notify consumers write to for a shop and how: the
+// shop's name for texts, the phone of its desk, and the channels it chose
+// (none chosen means it wants no messages).
+type NotifyTarget struct {
+	Name     string
+	Phone    string // empty when the shop has no phone
+	Channels []enum.NotifyChannel
+}
+
+// NotifyTarget reads it inside the caller's transaction. An unknown shop is NOT_FOUND.
+func (s *Service) NotifyTarget(ctx context.Context, tx *db.Tx, id uuid.UUID) (NotifyTarget, error) {
+	var t NotifyTarget
+	var phone *string
+	var channels []string
+	err := tx.QueryRow(ctx, `SELECT sh.name, sh.phone, ss.notify_channels FROM shops sh JOIN shop_settings ss ON ss.shop_id = sh.id WHERE sh.id = $1`, id).
+		Scan(&t.Name, &phone, &channels)
+	if err != nil {
+		return t, apperr.NotFoundUnless(db.IgnoreNoRows(err), err == nil)
+	}
+	if phone != nil {
+		t.Phone = *phone
+	}
+	for _, c := range channels {
+		t.Channels = append(t.Channels, enum.NotifyChannel(c))
+	}
+	return t, nil
+}
