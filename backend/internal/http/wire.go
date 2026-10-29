@@ -6,6 +6,7 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/cartclient"
 	"gp/internal/catalog"
 	"gp/internal/delivery"
 	"gp/internal/events"
@@ -47,6 +48,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	pricingSvc := pricing.NewService(database, shopSvc)
 	shopSvc.SetRepricer(pricingSvc)
 	catalogSvc := catalog.NewService(database, shopSvc, deliverySvc, pricingSvc, cfg.ImgBaseURL)
+	shopSvc.SetCarts(cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins), catalogSvc)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := notify.New(logchannel.New(cfg.IsLocal())) // real SMS comes with P25
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)

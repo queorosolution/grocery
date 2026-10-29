@@ -18,10 +18,11 @@ import (
 	"gp/internal/shared/validate"
 )
 
-// Limits. A price above Rs 1 billion is a typing mistake, and keeping prices
-// small keeps the markup maths far from overflow.
+// Limits. A price above Rs 5 million is a typing mistake. With the largest
+// markup (20%) the customer price stays under the cart service's limit of
+// 999,999,999 cents, and the markup maths stays far from overflow.
 const (
-	maxPriceCents      = 100_000_000_000
+	maxPriceCents      = 500_000_000
 	maxStock           = 1_000_000_000
 	defaultMaxPerOrder = 20
 )

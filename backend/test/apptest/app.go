@@ -19,8 +19,10 @@ import (
 
 	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/cartclient"
 	"gp/internal/catalog"
 	"gp/internal/delivery"
+	"gp/internal/events"
 	apihttp "gp/internal/http"
 	"gp/internal/notify"
 	"gp/internal/pricing"
@@ -71,24 +73,30 @@ type App struct {
 	Secrets *Secrets
 	// SMS keeps the messages the API tried to send (OTP codes).
 	SMS *fakes.Outbox
-	ips int
+	// Cart is the fake cart service the API and the price sync talk to.
+	Cart *fakes.Cart
+	// Events holds the consumers the worker would run; DrainEvents runs them.
+	Events *events.Registry
+	ips    int
 }
 
 func New(t *testing.T) *App {
 	t.Helper()
 	env := testdb.New(t)
 	oidc := fakes.NewOIDC(t)
+	cart := fakes.NewCart(t)
 	cfg := &config.Config{
 		Env: config.EnvDev, APIBaseURL: "https://api.example.test", AllowedOrigins: []string{WebOrigin},
 		GoogleClientID: ClientID, SuperAdminEmails: []string{AdminEmail}, PlatformName: "TestShop",
-		ImgBaseURL: ImgBase, R2AccountID: "test-account", R2Bucket: "test-bucket",
+		ImgBaseURL: ImgBase, R2AccountID: "test-account", R2Bucket: "test-bucket", CartAPIBase: cart.BaseURL(),
 	}
 	sec := &Secrets{values: map[string]string{
-		"enc/key":    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-		"jwt/key":    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-		"ip/pepper":  "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
-		"otp/pepper": "b3RwcGVwcGVyb3RwcGVwcGVyb3RwcGVwcGVyb3A=",
-		"r2/keys":    `{"accessKeyId":"test-access-key","secretAccessKey":"test-secret-key"}`,
+		"enc/key":           "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		"jwt/key":           "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		"ip/pepper":         "cGVwcGVycGVwcGVycGVwcGVycGVwcGVycGU=",
+		"otp/pepper":        "b3RwcGVwcGVyb3RwcGVwcGVyb3RwcGVwcGVyb3A=",
+		"r2/keys":           `{"accessKeyId":"test-access-key","secretAccessKey":"test-secret-key"}`,
+		"cart/platform-key": fakes.CartKey,
 	}}
 	teamSvc := team.NewService(env.DB)
 	svc := auth.NewService(cfg, env.DB, sec, auth.NewOIDCVerifier(oidc.Issuer, ClientID), teamSvc)
@@ -97,6 +105,10 @@ func New(t *testing.T) *App {
 	pricingSvc := pricing.NewService(env.DB, shopSvc)
 	shopSvc.SetRepricer(pricingSvc)
 	catalogSvc := catalog.NewService(env.DB, shopSvc, deliverySvc, pricingSvc, cfg.ImgBaseURL)
+	carts := cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins).WithoutDelays()
+	shopSvc.SetCarts(carts, catalogSvc)
+	reg := events.NewRegistry()
+	catalog.NewCartSync(shopSvc, carts).Register(reg)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
@@ -110,7 +122,7 @@ func New(t *testing.T) *App {
 		Upload:   upload.NewHandler(uploadSvc, teamSvc),
 		Audit:    audit.NewHandler(env.DB),
 	}
-	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms}
+	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.
@@ -270,4 +282,35 @@ func (a *App) Admin() Session {
 	s.Access = Cookies(w)[auth.AccessCookie]
 	s.Me = Decode[auth.Me](a.T, w)
 	return s
+}
+
+// DrainEvents runs the consumers over every event written so far, in order, as
+// the worker would after the queue delivers them. Events already processed are
+// skipped, so it is safe to call again. It returns the first failure.
+func (a *App) DrainEvents() error {
+	ctx := context.Background()
+	rows, err := a.Env.Owner.Query(ctx, `
+		SELECT id, type, shop_id, coalesce(entity_id, ''), payload, created_at FROM outbox ORDER BY created_at, id`)
+	if err != nil {
+		return err
+	}
+	var msgs []events.Message
+	for rows.Next() {
+		var m events.Message
+		if err := rows.Scan(&m.ID, &m.Type, &m.ShopID, &m.EntityID, &m.Data, &m.At); err != nil {
+			rows.Close()
+			return err
+		}
+		msgs = append(msgs, m)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, m := range msgs {
+		if err := a.Events.Dispatch(ctx, a.Env.DB, m); err != nil {
+			return err
+		}
+	}
+	return nil
 }

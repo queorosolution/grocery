@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"gp/internal/cartclient"
+	"gp/internal/catalog"
 	"gp/internal/events"
 	"gp/internal/events/eventsaws"
 	"gp/internal/shared/config"
 	"gp/internal/shared/db"
 	"gp/internal/shared/logx"
 	"gp/internal/shared/secrets"
+	"gp/internal/shop"
 	"gp/internal/site"
 )
 
@@ -33,8 +36,9 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Worker, 
 
 	registry := events.NewRegistry()
 	site.NewRebuilder(sec).Register(registry)
-	// The other consumers (notify, stats, buy-again, cart prices) register here
-	// when their modules arrive.
+	catalog.NewCartSync(shop.NewService(database, sec, cfg.FeatureManualPay), cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins)).
+		Register(registry)
+	// The other consumers (notify, stats, buy-again) register here when their modules arrive.
 
 	return New(database, registry, Jobs(publisher)), database.Close, nil
 }
