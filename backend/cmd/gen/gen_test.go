@@ -77,7 +77,7 @@ func TestGeneratedContent(t *testing.T) {
 		"enum_gen.go":   {`RoleSuperAdmin Role = "SUPER_ADMIN"`, "func OrderStatusValues()", `PermissionOrderReview Permission = "order.review"`},
 		"perm_gen.go":   {"func RoleHas", "can_edit_products"},
 		"flow_gen.go":   {`ID: "T19"`, "func IsFinal", "func Allowed("},
-		"codes_gen.go":  {`CodeSlotFull Code = "SLOT_FULL"`, "return 423"},
+		"codes_gen.go":  {`SlotFull Code = "SLOT_FULL"`, "return 423"},
 		"enums.gen.ts":  {`export const roleValues = ["SUPER_ADMIN"`, "export type OrderStatus"},
 		"perms.gen.ts":  {"Record<Role, readonly Permission[]>"},
 		"errors.gen.ts": {`SLOT_FULL: { http: 409`, "export type ErrorCode"},

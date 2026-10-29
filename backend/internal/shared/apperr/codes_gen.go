@@ -6,57 +6,57 @@ package apperr
 type Code string
 
 const (
-	CodeBelowMinOrder        Code = "BELOW_MIN_ORDER"
-	CodeBotCheckFailed       Code = "BOT_CHECK_FAILED"
-	CodeCartEmpty            Code = "CART_EMPTY"
-	CodeCartUnavailable      Code = "CART_UNAVAILABLE"
-	CodeCartWrongShop        Code = "CART_WRONG_SHOP"
-	CodeConflict             Code = "CONFLICT"
-	CodeConnectorBusy        Code = "CONNECTOR_BUSY"
-	CodeConnectorTestFailed  Code = "CONNECTOR_TEST_FAILED"
-	CodeCouponAlreadyApplied Code = "COUPON_ALREADY_APPLIED"
-	CodeCouponExpired        Code = "COUPON_EXPIRED"
-	CodeCouponInvalid        Code = "COUPON_INVALID"
-	CodeCouponLimit          Code = "COUPON_LIMIT"
-	CodeCouponMinOrder       Code = "COUPON_MIN_ORDER"
-	CodeDeliveryCodeInvalid  Code = "DELIVERY_CODE_INVALID"
-	CodeDeliveryCodeLocked   Code = "DELIVERY_CODE_LOCKED"
-	CodeForbidden            Code = "FORBIDDEN"
-	CodeIdempotencyMismatch  Code = "IDEMPOTENCY_MISMATCH"
-	CodeInternal             Code = "INTERNAL"
-	CodeInvalidTransition    Code = "INVALID_TRANSITION"
-	CodeItemUnavailable      Code = "ITEM_UNAVAILABLE"
-	CodeNotFound             Code = "NOT_FOUND"
-	CodeOtpInvalid           Code = "OTP_INVALID"
-	CodeOtpLocked            Code = "OTP_LOCKED"
-	CodeOutOfRange           Code = "OUT_OF_RANGE"
-	CodePayloadTooLarge      Code = "PAYLOAD_TOO_LARGE"
-	CodePaymentNotAvailable  Code = "PAYMENT_NOT_AVAILABLE"
-	CodePhoneNotVerified     Code = "PHONE_NOT_VERIFIED"
-	CodeQtyLimit             Code = "QTY_LIMIT"
-	CodeRateLimited          Code = "RATE_LIMITED"
-	CodeShopClosed           Code = "SHOP_CLOSED"
-	CodeShopNotReady         Code = "SHOP_NOT_READY"
-	CodeSlotClosed           Code = "SLOT_CLOSED"
-	CodeSlotFull             Code = "SLOT_FULL"
-	CodeStaleOrder           Code = "STALE_ORDER"
-	CodeTooManyOpenOrders    Code = "TOO_MANY_OPEN_ORDERS"
-	CodeTotpInvalid          Code = "TOTP_INVALID"
-	CodeTotpRequired         Code = "TOTP_REQUIRED"
-	CodeUnauthenticated      Code = "UNAUTHENTICATED"
-	CodeUploadRejected       Code = "UPLOAD_REJECTED"
-	CodeValidationError      Code = "VALIDATION_ERROR"
+	BelowMinOrder        Code = "BELOW_MIN_ORDER"
+	BotCheckFailed       Code = "BOT_CHECK_FAILED"
+	CartEmpty            Code = "CART_EMPTY"
+	CartUnavailable      Code = "CART_UNAVAILABLE"
+	CartWrongShop        Code = "CART_WRONG_SHOP"
+	Conflict             Code = "CONFLICT"
+	ConnectorBusy        Code = "CONNECTOR_BUSY"
+	ConnectorTestFailed  Code = "CONNECTOR_TEST_FAILED"
+	CouponAlreadyApplied Code = "COUPON_ALREADY_APPLIED"
+	CouponExpired        Code = "COUPON_EXPIRED"
+	CouponInvalid        Code = "COUPON_INVALID"
+	CouponLimit          Code = "COUPON_LIMIT"
+	CouponMinOrder       Code = "COUPON_MIN_ORDER"
+	DeliveryCodeInvalid  Code = "DELIVERY_CODE_INVALID"
+	DeliveryCodeLocked   Code = "DELIVERY_CODE_LOCKED"
+	Forbidden            Code = "FORBIDDEN"
+	IdempotencyMismatch  Code = "IDEMPOTENCY_MISMATCH"
+	Internal             Code = "INTERNAL"
+	InvalidTransition    Code = "INVALID_TRANSITION"
+	ItemUnavailable      Code = "ITEM_UNAVAILABLE"
+	NotFound             Code = "NOT_FOUND"
+	OtpInvalid           Code = "OTP_INVALID"
+	OtpLocked            Code = "OTP_LOCKED"
+	OutOfRange           Code = "OUT_OF_RANGE"
+	PayloadTooLarge      Code = "PAYLOAD_TOO_LARGE"
+	PaymentNotAvailable  Code = "PAYMENT_NOT_AVAILABLE"
+	PhoneNotVerified     Code = "PHONE_NOT_VERIFIED"
+	QtyLimit             Code = "QTY_LIMIT"
+	RateLimited          Code = "RATE_LIMITED"
+	ShopClosed           Code = "SHOP_CLOSED"
+	ShopNotReady         Code = "SHOP_NOT_READY"
+	SlotClosed           Code = "SLOT_CLOSED"
+	SlotFull             Code = "SLOT_FULL"
+	StaleOrder           Code = "STALE_ORDER"
+	TooManyOpenOrders    Code = "TOO_MANY_OPEN_ORDERS"
+	TotpInvalid          Code = "TOTP_INVALID"
+	TotpRequired         Code = "TOTP_REQUIRED"
+	Unauthenticated      Code = "UNAUTHENTICATED"
+	UploadRejected       Code = "UPLOAD_REJECTED"
+	ValidationError      Code = "VALIDATION_ERROR"
 )
 
 // Codes returns every contract error code, sorted by name.
 func Codes() []Code {
-	return []Code{CodeBelowMinOrder, CodeBotCheckFailed, CodeCartEmpty, CodeCartUnavailable, CodeCartWrongShop, CodeConflict, CodeConnectorBusy, CodeConnectorTestFailed, CodeCouponAlreadyApplied, CodeCouponExpired, CodeCouponInvalid, CodeCouponLimit, CodeCouponMinOrder, CodeDeliveryCodeInvalid, CodeDeliveryCodeLocked, CodeForbidden, CodeIdempotencyMismatch, CodeInternal, CodeInvalidTransition, CodeItemUnavailable, CodeNotFound, CodeOtpInvalid, CodeOtpLocked, CodeOutOfRange, CodePayloadTooLarge, CodePaymentNotAvailable, CodePhoneNotVerified, CodeQtyLimit, CodeRateLimited, CodeShopClosed, CodeShopNotReady, CodeSlotClosed, CodeSlotFull, CodeStaleOrder, CodeTooManyOpenOrders, CodeTotpInvalid, CodeTotpRequired, CodeUnauthenticated, CodeUploadRejected, CodeValidationError}
+	return []Code{BelowMinOrder, BotCheckFailed, CartEmpty, CartUnavailable, CartWrongShop, Conflict, ConnectorBusy, ConnectorTestFailed, CouponAlreadyApplied, CouponExpired, CouponInvalid, CouponLimit, CouponMinOrder, DeliveryCodeInvalid, DeliveryCodeLocked, Forbidden, IdempotencyMismatch, Internal, InvalidTransition, ItemUnavailable, NotFound, OtpInvalid, OtpLocked, OutOfRange, PayloadTooLarge, PaymentNotAvailable, PhoneNotVerified, QtyLimit, RateLimited, ShopClosed, ShopNotReady, SlotClosed, SlotFull, StaleOrder, TooManyOpenOrders, TotpInvalid, TotpRequired, Unauthenticated, UploadRejected, ValidationError}
 }
 
 // Valid reports whether c is a contract code.
 func (c Code) Valid() bool {
 	switch c {
-	case CodeBelowMinOrder, CodeBotCheckFailed, CodeCartEmpty, CodeCartUnavailable, CodeCartWrongShop, CodeConflict, CodeConnectorBusy, CodeConnectorTestFailed, CodeCouponAlreadyApplied, CodeCouponExpired, CodeCouponInvalid, CodeCouponLimit, CodeCouponMinOrder, CodeDeliveryCodeInvalid, CodeDeliveryCodeLocked, CodeForbidden, CodeIdempotencyMismatch, CodeInternal, CodeInvalidTransition, CodeItemUnavailable, CodeNotFound, CodeOtpInvalid, CodeOtpLocked, CodeOutOfRange, CodePayloadTooLarge, CodePaymentNotAvailable, CodePhoneNotVerified, CodeQtyLimit, CodeRateLimited, CodeShopClosed, CodeShopNotReady, CodeSlotClosed, CodeSlotFull, CodeStaleOrder, CodeTooManyOpenOrders, CodeTotpInvalid, CodeTotpRequired, CodeUnauthenticated, CodeUploadRejected, CodeValidationError:
+	case BelowMinOrder, BotCheckFailed, CartEmpty, CartUnavailable, CartWrongShop, Conflict, ConnectorBusy, ConnectorTestFailed, CouponAlreadyApplied, CouponExpired, CouponInvalid, CouponLimit, CouponMinOrder, DeliveryCodeInvalid, DeliveryCodeLocked, Forbidden, IdempotencyMismatch, Internal, InvalidTransition, ItemUnavailable, NotFound, OtpInvalid, OtpLocked, OutOfRange, PayloadTooLarge, PaymentNotAvailable, PhoneNotVerified, QtyLimit, RateLimited, ShopClosed, ShopNotReady, SlotClosed, SlotFull, StaleOrder, TooManyOpenOrders, TotpInvalid, TotpRequired, Unauthenticated, UploadRejected, ValidationError:
 		return true
 	}
 	return false
@@ -65,85 +65,85 @@ func (c Code) Valid() bool {
 // HTTPStatus is the response status for the code; unknown codes map to 500.
 func (c Code) HTTPStatus() int {
 	switch c {
-	case CodeBelowMinOrder:
+	case BelowMinOrder:
 		return 409
-	case CodeBotCheckFailed:
+	case BotCheckFailed:
 		return 400
-	case CodeCartEmpty:
+	case CartEmpty:
 		return 409
-	case CodeCartUnavailable:
+	case CartUnavailable:
 		return 503
-	case CodeCartWrongShop:
+	case CartWrongShop:
 		return 409
-	case CodeConflict:
+	case Conflict:
 		return 409
-	case CodeConnectorBusy:
+	case ConnectorBusy:
 		return 409
-	case CodeConnectorTestFailed:
+	case ConnectorTestFailed:
 		return 422
-	case CodeCouponAlreadyApplied:
+	case CouponAlreadyApplied:
 		return 409
-	case CodeCouponExpired:
+	case CouponExpired:
 		return 409
-	case CodeCouponInvalid:
+	case CouponInvalid:
 		return 400
-	case CodeCouponLimit:
+	case CouponLimit:
 		return 409
-	case CodeCouponMinOrder:
+	case CouponMinOrder:
 		return 409
-	case CodeDeliveryCodeInvalid:
+	case DeliveryCodeInvalid:
 		return 400
-	case CodeDeliveryCodeLocked:
+	case DeliveryCodeLocked:
 		return 423
-	case CodeForbidden:
+	case Forbidden:
 		return 403
-	case CodeIdempotencyMismatch:
+	case IdempotencyMismatch:
 		return 409
-	case CodeInternal:
+	case Internal:
 		return 500
-	case CodeInvalidTransition:
+	case InvalidTransition:
 		return 409
-	case CodeItemUnavailable:
+	case ItemUnavailable:
 		return 409
-	case CodeNotFound:
+	case NotFound:
 		return 404
-	case CodeOtpInvalid:
+	case OtpInvalid:
 		return 400
-	case CodeOtpLocked:
+	case OtpLocked:
 		return 429
-	case CodeOutOfRange:
+	case OutOfRange:
 		return 409
-	case CodePayloadTooLarge:
+	case PayloadTooLarge:
 		return 413
-	case CodePaymentNotAvailable:
+	case PaymentNotAvailable:
 		return 409
-	case CodePhoneNotVerified:
+	case PhoneNotVerified:
 		return 409
-	case CodeQtyLimit:
+	case QtyLimit:
 		return 409
-	case CodeRateLimited:
+	case RateLimited:
 		return 429
-	case CodeShopClosed:
+	case ShopClosed:
 		return 409
-	case CodeShopNotReady:
+	case ShopNotReady:
 		return 409
-	case CodeSlotClosed:
+	case SlotClosed:
 		return 409
-	case CodeSlotFull:
+	case SlotFull:
 		return 409
-	case CodeStaleOrder:
+	case StaleOrder:
 		return 409
-	case CodeTooManyOpenOrders:
+	case TooManyOpenOrders:
 		return 409
-	case CodeTotpInvalid:
+	case TotpInvalid:
 		return 401
-	case CodeTotpRequired:
+	case TotpRequired:
 		return 401
-	case CodeUnauthenticated:
+	case Unauthenticated:
 		return 401
-	case CodeUploadRejected:
+	case UploadRejected:
 		return 400
-	case CodeValidationError:
+	case ValidationError:
 		return 400
 	}
 	return 500
@@ -152,85 +152,85 @@ func (c Code) HTTPStatus() int {
 // Message is the text shown to the user; unknown codes get the INTERNAL text.
 func (c Code) Message() string {
 	switch c {
-	case CodeBelowMinOrder:
+	case BelowMinOrder:
 		return "Add a few more items to reach the minimum order."
-	case CodeBotCheckFailed:
+	case BotCheckFailed:
 		return "Please complete the check and try again."
-	case CodeCartEmpty:
+	case CartEmpty:
 		return "Your cart is empty."
-	case CodeCartUnavailable:
+	case CartUnavailable:
 		return "We can't reach your cart right now. Please try again."
-	case CodeCartWrongShop:
+	case CartWrongShop:
 		return "This cart belongs to another shop."
-	case CodeConflict:
+	case Conflict:
 		return "This already exists."
-	case CodeConnectorBusy:
+	case ConnectorBusy:
 		return "A sync is already running."
-	case CodeConnectorTestFailed:
+	case ConnectorTestFailed:
 		return "Could not connect to the shop database."
-	case CodeCouponAlreadyApplied:
+	case CouponAlreadyApplied:
 		return "A coupon is already applied."
-	case CodeCouponExpired:
+	case CouponExpired:
 		return "This coupon has expired."
-	case CodeCouponInvalid:
+	case CouponInvalid:
 		return "This coupon code is not valid."
-	case CodeCouponLimit:
+	case CouponLimit:
 		return "This coupon can't be used again."
-	case CodeCouponMinOrder:
+	case CouponMinOrder:
 		return "Your bill is below this coupon's minimum."
-	case CodeDeliveryCodeInvalid:
+	case DeliveryCodeInvalid:
 		return "Wrong delivery code."
-	case CodeDeliveryCodeLocked:
+	case DeliveryCodeLocked:
 		return "Too many wrong codes. Ask the shop or admin to unlock."
-	case CodeForbidden:
+	case Forbidden:
 		return "You don't have access to this."
-	case CodeIdempotencyMismatch:
+	case IdempotencyMismatch:
 		return "This request was already sent with different details."
-	case CodeInternal:
+	case Internal:
 		return "Something went wrong. Please try again."
-	case CodeInvalidTransition:
+	case InvalidTransition:
 		return "This action is not possible now."
-	case CodeItemUnavailable:
+	case ItemUnavailable:
 		return "Some items are not available now."
-	case CodeNotFound:
+	case NotFound:
 		return "We couldn't find that."
-	case CodeOtpInvalid:
+	case OtpInvalid:
 		return "That code is not correct."
-	case CodeOtpLocked:
+	case OtpLocked:
 		return "Too many wrong codes. Try again later."
-	case CodeOutOfRange:
+	case OutOfRange:
 		return "This shop doesn't deliver to that address."
-	case CodePayloadTooLarge:
+	case PayloadTooLarge:
 		return "That request is too big."
-	case CodePaymentNotAvailable:
+	case PaymentNotAvailable:
 		return "Online payment is not available for this shop."
-	case CodePhoneNotVerified:
+	case PhoneNotVerified:
 		return "Please verify your phone number first."
-	case CodeQtyLimit:
+	case QtyLimit:
 		return "You can't order that many of this item."
-	case CodeRateLimited:
+	case RateLimited:
 		return "Too many tries. Please wait and try again."
-	case CodeShopClosed:
+	case ShopClosed:
 		return "The shop is closed now."
-	case CodeShopNotReady:
+	case ShopNotReady:
 		return "The shop is not taking orders yet."
-	case CodeSlotClosed:
+	case SlotClosed:
 		return "That time slot is no longer available."
-	case CodeSlotFull:
+	case SlotFull:
 		return "That time slot is full. Please pick another."
-	case CodeStaleOrder:
+	case StaleOrder:
 		return "This order just changed. Refreshing."
-	case CodeTooManyOpenOrders:
+	case TooManyOpenOrders:
 		return "Please finish or cancel your waiting orders first."
-	case CodeTotpInvalid:
+	case TotpInvalid:
 		return "That code is not correct."
-	case CodeTotpRequired:
+	case TotpRequired:
 		return "Enter the code from your authenticator app."
-	case CodeUnauthenticated:
+	case Unauthenticated:
 		return "Please sign in again."
-	case CodeUploadRejected:
+	case UploadRejected:
 		return "This file can't be uploaded."
-	case CodeValidationError:
+	case ValidationError:
 		return "Some details are not correct."
 	}
 	return "Something went wrong. Please try again."
