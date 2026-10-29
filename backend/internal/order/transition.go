@@ -48,6 +48,9 @@ type TransitionInput struct {
 	ExpectRevision *int
 	// Revise is what the shop changed. Only T03 reads it.
 	Revise *Revision
+	// verified says the delivery code was checked. Only Complete sets it, and a
+	// driver cannot make T16 without it.
+	verified bool
 }
 
 // Transition is the only way an order changes status after it was submitted
@@ -85,6 +88,9 @@ func (s *Service) transition(ctx context.Context, tx *db.Tx, scope db.Scope, ord
 	t, ok := Lookup(o.Status, to)
 	if !ok || !t.AllowedFor(who.role) {
 		return apperr.New(apperr.InvalidTransition)
+	}
+	if t.ID == "T16" && who.role != string(enum.RoleSuperAdmin) && !in.verified {
+		return apperr.New(apperr.InvalidTransition) // delivered needs the customer's code
 	}
 	if t.ReasonRequired && in.Reason == "" {
 		return apperr.Validation(map[string]string{"reason": "required"})

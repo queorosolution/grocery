@@ -95,6 +95,9 @@ func Routes(d Deps) []Route {
 	if d.Order != nil {
 		const orders = "/console/shops/{shopId}/orders"
 		review := Perm(enum.PermissionOrderReview)
+		fulfil := Perm(enum.PermissionOrderFulfil)
+		assign := Perm(enum.PermissionOrderAssignDriver)
+		deliver := Perm(enum.PermissionOrderDeliver)
 		table = append(table,
 			Route{nethttp.MethodPost, "/bills/quote", User, d.Order.Quote},
 			Route{nethttp.MethodPost, "/bills", User, d.Order.Submit},
@@ -107,6 +110,15 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodGet, orders, review, d.Order.ConsoleList},
 			Route{nethttp.MethodGet, orders + "/{id}", review, d.Order.ConsoleGet},
 			Route{nethttp.MethodPost, orders + "/{id}/review", review, d.Order.Review},
+			Route{nethttp.MethodPost, orders + "/{id}/status", fulfil, d.Order.Status},
+			Route{nethttp.MethodPost, orders + "/{id}/driver", assign, d.Order.ConsoleDriver},
+			Route{nethttp.MethodGet, "/console/shops/{shopId}/drivers", assign, d.Order.ConsoleDrivers},
+			Route{nethttp.MethodPost, "/admin/orders/{id}/driver", Admin, d.Order.AdminDriver},
+			Route{nethttp.MethodPost, "/admin/orders/{id}/unlock-code", Admin, d.Order.UnlockCode},
+			Route{nethttp.MethodGet, "/driver/deliveries", deliver, d.Order.Deliveries},
+			Route{nethttp.MethodPost, "/driver/deliveries/{id}/complete", deliver, d.Order.Complete},
+			Route{nethttp.MethodPost, "/driver/deliveries/{id}/fail", deliver, d.Order.Fail},
+			Route{nethttp.MethodGet, "/driver/stats", Perm(enum.PermissionDashboardDriver), d.Order.DriverStats},
 		)
 	}
 	if d.Coupon != nil {

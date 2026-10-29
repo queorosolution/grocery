@@ -12,7 +12,10 @@ import (
 	"gp/internal/delivery"
 	"gp/internal/finance"
 	"gp/internal/shared/db"
+	"gp/internal/shared/enum"
+	"gp/internal/shared/secrets"
 	"gp/internal/shop"
+	"gp/internal/team"
 	"gp/internal/user"
 )
 
@@ -23,6 +26,7 @@ type Shops interface {
 	OrderFacts(ctx context.Context, tx *db.Tx, id uuid.UUID, now time.Time) (shop.OrderFacts, error)
 	TimeoutsOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (shop.Timeouts, error)
 	BillFacts(ctx context.Context, tx *db.Tx, id uuid.UUID) (shop.BillFacts, error)
+	DriverSourceOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (enum.DriverSource, error)
 }
 
 type Delivery interface {
@@ -59,6 +63,29 @@ type Coupons interface {
 // Finance posts the ledger rows of a paid order. *finance.Service is the real one.
 type Finance interface {
 	PostPaid(ctx context.Context, tx *db.Tx, f finance.PaidFacts) error
+	PostDelivered(ctx context.Context, tx *db.Tx, f finance.DeliveredFacts) error
+}
+
+// Drivers answers who may deliver. *team.Service is the real one.
+type Drivers interface {
+	DriverKindOf(ctx context.Context, tx *db.Tx, userID, shopID uuid.UUID) (team.DriverKind, error)
+	ShopDrivers(ctx context.Context, tx *db.Tx, shopID uuid.UUID) ([]team.Driver, error)
+}
+
+// Deps is everything the order service is built from.
+type Deps struct {
+	DB       *db.DB
+	Shops    Shops
+	Delivery Delivery
+	Users    Users
+	Products Products
+	Carts    Carts
+	Coupons  Coupons
+	Finance  Finance
+	Drivers  Drivers
+	// Secrets gives the key that seals delivery codes. Nil only where no code is
+	// ever made or read (the timer function).
+	Secrets secrets.Getter
 }
 
 type Service struct {
@@ -70,8 +97,11 @@ type Service struct {
 	carts    Carts
 	coupons  Coupons
 	finance  Finance
+	drivers  Drivers
+	secrets  secrets.Getter
 }
 
-func NewService(d *db.DB, shops Shops, dl Delivery, users Users, products Products, carts Carts, coupons Coupons, fin Finance) *Service {
-	return &Service{db: d, shops: shops, delivery: dl, users: users, products: products, carts: carts, coupons: coupons, finance: fin}
+func NewService(d Deps) *Service {
+	return &Service{db: d.DB, shops: d.Shops, delivery: d.Delivery, users: d.Users, products: d.Products, carts: d.Carts,
+		coupons: d.Coupons, finance: d.Finance, drivers: d.Drivers, secrets: d.Secrets}
 }

@@ -22,6 +22,7 @@ import (
 	"gp/internal/shared/logx"
 	"gp/internal/shared/secrets"
 	"gp/internal/shop"
+	"gp/internal/team"
 )
 
 // Expirer is what the job needs of the order module.
@@ -55,7 +56,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Job, fun
 		events.SetPublisher(events.NewPublisher(database, queue, sched))
 	}
 	shopSvc := shop.NewService(database, sec, cfg.FeatureManualPay)
-	orders := order.NewService(database, shopSvc, delivery.NewService(database, shopSvc), nil, nil, nil, coupon.NewService(database), finance.NewService())
+	orders := order.NewService(order.Deps{DB: database, Shops: shopSvc, Delivery: delivery.NewService(database, shopSvc),
+		Coupons: coupon.NewService(database), Finance: finance.NewService(), Drivers: team.NewService(database)})
 	return New(orders), database.Close, nil
 }
 

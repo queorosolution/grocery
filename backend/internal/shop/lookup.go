@@ -139,3 +139,11 @@ func (s *Service) TimeoutsOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (Time
 	minutes := func(m int) time.Duration { return time.Duration(m) * time.Minute }
 	return Timeouts{Review: minutes(set.ReviewTimeoutMin), Revision: minutes(set.RevisionTimeoutMin), Payment: minutes(set.PaymentTimeoutMin)}, nil
 }
+
+// DriverSourceOf is who may deliver this shop's orders (FR-DLV-02). A shop that
+// does not exist is NOT_FOUND.
+func (s *Service) DriverSourceOf(ctx context.Context, tx *db.Tx, id uuid.UUID) (enum.DriverSource, error) {
+	var src enum.DriverSource
+	err := tx.QueryRow(ctx, `SELECT driver_source FROM shop_settings WHERE shop_id = $1`, id).Scan(&src)
+	return src, apperr.NotFoundUnless(db.IgnoreNoRows(err), err == nil)
+}

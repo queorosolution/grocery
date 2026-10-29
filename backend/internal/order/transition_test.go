@@ -45,6 +45,7 @@ func TestTransition_Table(t *testing.T) {
 	f := newFixture(t)
 	o, slot := f.submitted()
 	driver, staff := f.userID("driver"), f.userID("staff")
+	f.a.Grant(driver, &f.shop, string(enum.RoleShopDriver)) // T15 and T18 need a driver who may deliver
 	actors := map[string]db.Scope{
 		"CUSTOMER":        {UserID: f.me.Session.Me.ID, Role: enum.RoleCustomer},
 		"SHOP_OWNER":      {UserID: staff, ShopID: f.shop, Role: enum.RoleShopOwner},
@@ -54,7 +55,7 @@ func TestTransition_Table(t *testing.T) {
 		"SHOP_DRIVER":     {UserID: driver, Role: enum.RoleShopDriver},
 		"PLATFORM_DRIVER": {UserID: driver, Role: enum.RolePlatformDriver},
 	}
-	built := map[string]bool{"T02": true, "T04": true, "T05": true, "T06": true, "T07": true, "T08": true, "T09": true, "T10": true, "T11": true, "T12": true, "T19": true}
+	built := map[string]bool{"T02": true, "T04": true, "T05": true, "T06": true, "T07": true, "T08": true, "T09": true, "T10": true, "T11": true, "T12": true, "T13": true, "T14": true, "T15": true, "T17": true, "T18": true, "T19": true}
 	ran := 0
 	for _, from := range enum.OrderStatusValues() {
 		for _, to := range enum.OrderStatusValues() {
@@ -68,6 +69,16 @@ func TestTransition_Table(t *testing.T) {
 				case !exists || !tr.AllowedFor(name):
 					if codeOf(err) != apperr.InvalidTransition {
 						t.Errorf("%s: err = %v, want INVALID_TRANSITION", label, err)
+					}
+				case tr.ID == "T16" && name != "SUPER_ADMIN":
+					// Only the delivery code completes a delivery (BIZ-11); see TestDeliveryCode_*.
+					if codeOf(err) != apperr.InvalidTransition {
+						t.Errorf("%s (T16): err = %v, want INVALID_TRANSITION without the code", label, err)
+					}
+				case tr.ID == "T16":
+					ran++
+					if err != nil {
+						t.Errorf("%s (T16): %v", label, err)
 					}
 				case tr.ID == "T03":
 					// A revision with no changes is refused; Review tests cover the rest.

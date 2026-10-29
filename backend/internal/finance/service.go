@@ -84,3 +84,28 @@ func (s *Service) PostPaid(ctx context.Context, tx *db.Tx, f PaidFacts) error {
 	}
 	return nil
 }
+
+// DeliveredFacts are the numbers of an order that was just delivered.
+type DeliveredFacts struct {
+	OrderID, ShopID  uuid.UUID
+	DeliveryFeeCents money.Cents
+	// ByShopDriver is true when the shop's own driver delivered, so the fee is the
+	// shop's; else a platform driver did and it is the platform's.
+	ByShopDriver bool
+}
+
+// PostDelivered writes the row of T16: the delivery fee, for whoever delivered
+// (docs/05 section 4). A free delivery posts nothing.
+func (s *Service) PostDelivered(ctx context.Context, tx *db.Tx, f DeliveredFacts) error {
+	if f.DeliveryFeeCents < 0 {
+		return errFacts
+	}
+	if f.DeliveryFeeCents == 0 {
+		return nil
+	}
+	party := enum.LedgerPartyPlatform
+	if f.ByShopDriver {
+		party = enum.LedgerPartyShop
+	}
+	return insert(ctx, tx, f.ShopID, f.OrderID, entry{enum.LedgerTypeDeliveryFee, party, f.DeliveryFeeCents, ""})
+}

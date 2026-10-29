@@ -74,7 +74,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)
 	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
 	couponSvc := coupon.NewService(database)
-	orderSvc := order.NewService(database, shopSvc, deliverySvc, userSvc, catalogSvc, carts, couponSvc, finance.NewService())
+	orderSvc := order.NewService(order.Deps{DB: database, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
+		Coupons: couponSvc, Finance: finance.NewService(), Drivers: teamSvc, Secrets: sec})
 	paymentHandler := payment.NewHandler(payment.NewService(database, orderSvc, shopSvc, refund.NewService(), payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+Base+payment.NotifyPattern),
 		enum.PaymentProviderManual:  manual.New(),

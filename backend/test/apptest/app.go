@@ -130,6 +130,7 @@ func New(t *testing.T) *App {
 	shopSvc.SetCarts(carts, catalogSvc)
 	reg := events.NewRegistry()
 	catalog.NewCartSync(shopSvc, carts).Register(reg)
+	catalog.NewBuyAgain().Register(reg)
 	schedules, invoker := fakes.NewSchedules(), &fakes.Invoker{}
 	connectorSvc := connector.NewService(env.DB, sec, localSource(env), cfg.ImgBaseURL).
 		Attach(connector.Runtime{Pricer: pricingSvc, Products: catalogSvc, Hours: shopSvc, Schedules: schedules, Invoker: invoker})
@@ -138,7 +139,8 @@ func New(t *testing.T) *App {
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
 	couponSvc := coupon.NewService(env.DB)
-	orderSvc := order.NewService(env.DB, shopSvc, deliverySvc, userSvc, catalogSvc, carts, couponSvc, finance.NewService())
+	orderSvc := order.NewService(order.Deps{DB: env.DB, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
+		Coupons: couponSvc, Finance: finance.NewService(), Drivers: teamSvc, Secrets: sec})
 	paymentSvc := payment.NewService(env.DB, orderSvc, shopSvc, refund.NewService(), payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+apihttp.Base+payment.NotifyPattern),
 		enum.PaymentProviderManual:  manual.New(),

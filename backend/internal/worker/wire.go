@@ -38,7 +38,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Worker, 
 	site.NewRebuilder(sec).Register(registry)
 	catalog.NewCartSync(shop.NewService(database, sec, cfg.FeatureManualPay), cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins)).
 		Register(registry)
-	// The other consumers (notify, stats, buy-again) register here when their modules arrive.
+	catalog.NewBuyAgain().Register(registry)
+	// The other consumers (notify, stats) register here when their modules arrive.
 
 	return New(database, registry, Jobs(publisher)), database.Close, nil
 }

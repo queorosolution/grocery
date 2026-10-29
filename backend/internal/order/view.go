@@ -129,9 +129,11 @@ type orderData struct {
 	Coupon     *CouponRef
 	Payment    PaymentRef
 	PaidAt     *time.Time
-	Items      []LineView
-	Steps      []Step
-	ExpiresAt  *time.Time
+	// DeliveryCode is the delivery code, read only for the customer while the order is out.
+	DeliveryCode *string
+	Items        []LineView
+	Steps        []Step
+	ExpiresAt    *time.Time
 }
 
 // Detail maps the order for a viewer. The role and the user decide the action list.
@@ -145,6 +147,7 @@ func (d orderData) Detail(v Viewer, sc db.Scope) Detail {
 		out.Lines, out.PreviousLines = current, previous
 		out.Totals, out.Coupon, out.Payment = &d.Totals, d.Coupon, &d.Payment
 		out.ExpiresAt, out.Timeline = d.ExpiresAt, d.Steps
+		out.DeliveryCode = d.DeliveryCode // DATA-04: no other viewer is ever given it
 	case ViewConsole:
 		out.Lines, out.PreviousLines = current, previous
 		out.Totals, out.Coupon, out.Payment = &d.Totals, d.Coupon, &d.Payment

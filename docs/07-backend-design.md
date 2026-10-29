@@ -262,6 +262,14 @@ Inside one `db.Tx`:
 - **Shared:** `money.Decimal` / `money.ParseDecimal` (the gateway's `1585.00`, strict), `httpx.PeekBody` (read a body in a route guard and leave it for the handler; the connector trigger uses it too).
 - **Fake PayHere:** `make fake-payhere PAYMENT=<payment id> AMOUNT=1585.00 [STATUS=2] [TIMES=2] [CARD=1]` posts a signed notify to `localhost:8080` and refuses any other host.
 
+**Built in P23 (`internal/order`: `fulfil.go`, `driver.go`, `code.go`, `deliveries.go`, `handler_fulfil.go`):**
+- **Moves:** `Fulfil` (T13, T14, T15, T18) is a thin check of the target, then `Transition`. T13, T14 and T17 have no side effect (`noEffect`). T15 / T18 (`sendOut`) need a driver the shop may use and make the delivery code. T16 (`deliver`) posts `DELIVERY_FEE` through `finance.PostDelivered`: party `SHOP` when a shop driver delivered, else `PLATFORM`. With it the ledger rows add up to `total_cents`.
+- **Delivery code:** `issueCode` seals 4 random digits with the ring from `enc/key` (`secrets.Ring`), AAD `delivery_code:<orderId>`. `Complete` is the only way to T16 for a driver: `TransitionInput.verified` is set only there, and `Transition` refuses T16 for anyone but the admin without it. A wrong code adds one to `delivery_code_attempts` and **commits** before the error is returned; at 5 the order answers `DELIVERY_CODE_LOCKED`. `UnlockCode` (admin) sets the count back to 0.
+- **Driver scope:** `Complete` runs in a system transaction, because T16 writes the ledger, which a driver may not. The caller is checked in code with `inScope` (the order's `driver_id`), so another driver gets `404` (AUTHZ-03). A platform driver's membership is invisible to a shop scope, so `team.DriverKindOf` is read as the system.
+- **Driver source:** `driverFor` applies `shop_settings.driver_source`: `SHOP` and `BOTH` allow the shop's own drivers, `PLATFORM` and `BOTH` allow platform drivers, and only the admin picks a platform driver.
+- **Buy again:** `catalog.BuyAgain` consumes `order.delivered` (`catalog.buy_again`) and upserts `customer_products` from the lines of the current revision that are `ACTIVE` or `SUBSTITUTE`. It is registered in `worker/wire.go`; the dispatcher's `processed_events` claim keeps a repeated event from counting twice.
+- **Deferred:** the SMS with the delivery code comes with the notify prompt (P25); until then the customer reads the code in the order detail.
+
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 
 **Order codes:** `<SHOPPREFIX>-<6 chars>` from Crockford base32, e.g. `KS-7Q2M9X`. Prefix from shop slug (2 letters). Unique index retries once on clash.

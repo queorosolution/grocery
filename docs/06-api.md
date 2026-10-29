@@ -240,7 +240,7 @@ Returned by every order endpoint (customer, console, driver), with fields hidden
 }
 ```
 
-- Another customer's order, a missing id and a malformed id are all `404`. `lines` are the current revision; earlier revisions are in `previousLines`. `expiresAt` is when the wait the order is in (review, revision or payment) runs out; it is left out of final statuses. `deliveryCode` is not built yet (it comes with the fulfilment prompt).
+- Another customer's order, a missing id and a malformed id are all `404`. `lines` are the current revision; earlier revisions are in `previousLines`. `expiresAt` is when the wait the order is in (review, revision or payment) runs out; it is left out of final statuses.
 - The action names are code constants in `internal/order/actions.go` (they are not in `contracts/enums.json` yet).
 - `allowedActions` is computed **on the server** from the transition table + viewer. The UI shows buttons only from this list. Values: `CANCEL`, `ACCEPT_REVISION`, `APPLY_COUPON`, `REMOVE_COUPON`, `PAY`, `REPORT_PROBLEM`, console: `APPROVE`, `REVISE`, `REJECT`, `START_PICKING`, `MARK_PACKED`, `ASSIGN_DRIVER`, `SEND_OUT`, `RETRY_DELIVERY`, `REQUEST_CANCEL`, `REQUEST_PARTIAL_REFUND`, driver: `COMPLETE`, `FAIL`.
 - `deliveryCode` is present **only** for the customer and only in `OUT_FOR_DELIVERY`.
@@ -325,10 +325,10 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 | `GET` | `/orders?status=&limit=&cursor=` | `order.review` | `status` is a comma list of order statuses (a name that does not exist is `400`) | The shop's orders, newest first, 20 per page (`limit` up to 50) → `{ "data": [ { id, code, status, version, customer: { name, phoneMasked }, slot: { startsAt, endsAt } \| null, totalCents, itemCount, createdAt } ], "nextCursor": "…" \| null }`. Sends an `ETag`; a request with `If-None-Match` of that tag gets `304` and no body. `itemCount` counts the lines that still count (not removed ones). The shop is the one in the path: another shop's orders are never listed. |
 | `GET` | `/orders/{id}` | `order.review` | — | Order detail (console view). An order of another shop is `404`, also for an admin on this shop's path. |
 | `POST` | `/orders/{id}/review` | `order.review` | see below | T02 / T03 / T04. Returns the order detail. |
-| `POST` | `/orders/{orderId}/status` | `order.fulfil` | `{ "version", "to": "PICKING" \| "PACKED" \| "OUT_FOR_DELIVERY" }` | T13 / T14 / T15 / T18 |
-| `POST` | `/orders/{orderId}/driver` | `order.assign_driver` | `{ "version", "driverId" }` | Driver must be allowed by `driver_source` |
+| `POST` | `/orders/{orderId}/status` | `order.fulfil` | `{ "version", "to": "PICKING" \| "PACKED" \| "OUT_FOR_DELIVERY" }` | T13 / T14 / T15 / T18. Answers `200` with the order detail. `OUT_FOR_DELIVERY` needs a driver (`400`, `fields.driver = "required"`) and makes the delivery code. Other targets → `400`. |
+| `POST` | `/orders/{orderId}/driver` | `order.assign_driver` | `{ "version", "driverId" }` | Order must be `PAID`, `PICKING`, `PACKED` or `DELIVERY_FAILED` (else `409 INVALID_TRANSITION`). The driver must be a driver **of this shop** and the shop's `driver_source` must be `SHOP` or `BOTH` (else `400`, `fields.driver = "not_allowed"`). The version goes up by one. Platform drivers are assigned only by the admin. |
 | `POST` | `/orders/{orderId}/refund-requests` | `order.request_refund` | `{ "type": "FULL" \| "PARTIAL", "orderItemId", "reason" }` | |
-| `GET` | `/drivers` | `order.assign_driver` | — | Shop drivers (+ platform drivers if allowed) |
+| `GET` | `/drivers` | `order.assign_driver` | — | `{ "data": [ { id, name } ] }`: the shop's own drivers, by name. Platform drivers are not listed. |
 | `GET` | `/products?q=&cursor=&available=` | `order.review` | — | The shop's own products by name, 50 per page → `{ "data": [ { id, productId, name, brand, sizeLabel, barcode, imageUrl, shopPriceCents, mrpCents, onlinePriceCents, stockQty, isAvailable, maxPerOrder, managedBy, updatedAt } ], "nextCursor": "" }`. `available` is `true` or `false`; `q` is a word of the name, brand or keywords. `stockQty` is a number or `null`. |
 | `PATCH` | `/products/{shopProductId}` | `product.edit` | `{ shopPriceCents, mrpCents, stockQty, isAvailable, maxPerOrder }`, any of them | Returns the shop product. A field left out keeps its value; `mrpCents: null` removes the MRP, `stockQty: null` stops tracking stock; `stockQty` is a whole number in phase 1. The customer price is worked out by the server (docs/07 section 6) and is never accepted. For a **connector-managed** product `shopPriceCents`, `mrpCents`, `stockQty` and `isAvailable` → `400 VALIDATION_ERROR` (`fields.<name> = "managed_by_connector"`, all of them named); `maxPerOrder` is always editable. Prices that leave no valid customer price → `fields.shopPriceCents` or `fields.mrpCents` = `invalid_price`. A product of another shop is `404`. Price changes are written to `price_changes` and `audit_log`. |
 | `GET` | `/team` | `team.manage` | — | Members + pending invites |
@@ -367,10 +367,10 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 
 | Method | Path | Permission | Body | Notes |
 |---|---|---|---|---|
-| `GET` | `/deliveries?day=YYYY-MM-DD` | `order.deliver` | — | Orders where `driver_id = me`, grouped by slot |
-| `POST` | `/deliveries/{orderId}/complete` | `order.deliver` | `{ "version", "code": "4821" }` | T16. Errors `DELIVERY_CODE_INVALID`, `DELIVERY_CODE_LOCKED` |
-| `POST` | `/deliveries/{orderId}/fail` | `order.deliver` | `{ "version", "reason" }` | T17 |
-| `GET` | `/stats?from=&to=` | `dashboard.driver` | — | Counts only |
+| `GET` | `/deliveries?day=YYYY-MM-DD` | `order.deliver` | — | `{ "data": [ { slot: { startsAt, endsAt } \| null, orders: [ { id, code, status, version, customer: { name, phone }, address: { label, line1, landmark, lat, lng }, totalCents, itemCount } ] } ] }`. Orders where `driver_id = me`, grouped by slot. A slot order belongs to the day its window starts, a courier order to the day it was paid. `day` is a Colombo date, default today. No code and no prices per line. |
+| `POST` | `/deliveries/{orderId}/complete` | `order.deliver` | `{ "version", "code": "4821" }` | T16. The code is 4 digits (else `400`). A wrong code → `400 DELIVERY_CODE_INVALID` and counts as a try; after 5 wrong tries the order answers `423 DELIVERY_CODE_LOCKED` (also for the right code) until the admin unlocks it. An order that is not the caller's driver order → `404`. |
+| `POST` | `/deliveries/{orderId}/fail` | `order.deliver` | `{ "version", "reason" }` | T17. `reason` 3–300 characters. |
+| `GET` | `/stats?from=&to=` | `dashboard.driver` | — | `{ delivered, failed }` of the caller, from the order history. Default: the last 30 days (Colombo dates, both days included). |
 
 ---
 
@@ -408,8 +408,8 @@ The middleware loads the caller's **active membership for `{shopId}`** (or admin
 | Orders | `GET /orders?shopId=&status=&q=` | `q` = order code or phone last 4 |
 | | `POST /orders/{id}/transition` | `{ version, to, reason }` — admin transitions only |
 | | `POST /orders/{id}/mark-paid` | `{ version, reference }` — manual payments (T10). The shop's order must carry the `MANUAL` provider (else `409 INVALID_TRANSITION`); a PayHere order is paid by PayHere only. `reference` is the bank's reference (3–100 characters, no spaces around) and belongs to one order (`400`, `fields.reference = "used"`). The newest open manual attempt becomes `SUCCESS` and the others `CANCELLED`; with none open a `SUCCESS` payment is recorded. The payment, the move to `PAID`, the ledger rows and two audit rows (`order.mark_paid`, `order.transition`) are one transaction. Answers `200` with the order detail. `STALE_ORDER` for an old `version`. |
-| | `POST /orders/{id}/unlock-code` | Resets attempts |
-| | `POST /orders/{id}/driver` | Assign platform driver |
+| | `POST /orders/{id}/unlock-code` | Resets the attempts of an `OUT_FOR_DELIVERY` order to 0 (else `409 INVALID_TRANSITION`). The code stays the same. Audited (`order.unlock_code`). Answers `200` with the order detail. |
+| | `POST /orders/{id}/driver` | `{ version, driverId }`: assign a shop driver or, when the shop's `driver_source` is `PLATFORM` or `BOTH`, a platform driver. Audited (`order.assign_driver`). |
 | Refunds | `GET /refunds?status=`, `POST /refunds/{id}/decide` (`{ approve, note }`), `POST /refunds/{id}/paid-out` (`{ reference }`) | |
 | Tickets | `GET /tickets?status=`, `POST /tickets/{id}/resolve` | |
 | Payouts | `GET /payouts?shopId=`, `POST /payouts` (`{ shopId, from, to }` → DRAFT with amount from ledger), `POST /payouts/{id}/paid` (`{ reference }`) | |

@@ -244,3 +244,54 @@ func shopOf(id *uuid.UUID) uuid.UUID {
 	}
 	return *id
 }
+
+// DriverKind says how a driver relates to a shop's deliveries.
+type DriverKind int
+
+const (
+	NotADriver     DriverKind = iota
+	ShopDriver                // an active SHOP_DRIVER of that shop
+	PlatformDriver            // an active PLATFORM_DRIVER
+)
+
+// DriverKindOf reads the user's active driver roles, inside the caller's
+// transaction (what the scope can see of other people's roles is what row level
+// security lets through: a shop sees its own drivers, the admin sees all). A user
+// who is both is a shop driver for that shop.
+func (s *Service) DriverKindOf(ctx context.Context, tx *db.Tx, userID, shopID uuid.UUID) (DriverKind, error) {
+	ms, err := membershipsOf(ctx, tx, userID)
+	if err != nil {
+		return NotADriver, err
+	}
+	kind := NotADriver
+	for _, m := range ms {
+		switch {
+		case m.Role == enum.RoleShopDriver && m.ShopID == shopID:
+			return ShopDriver, nil
+		case m.Role == enum.RolePlatformDriver:
+			kind = PlatformDriver
+		}
+	}
+	return kind, nil
+}
+
+// Driver is a shop driver as the console lists them.
+type Driver struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// ShopDrivers lists the active drivers of a shop by name.
+func (s *Service) ShopDrivers(ctx context.Context, tx *db.Tx, shopID uuid.UUID) ([]Driver, error) {
+	members, err := membersOf(ctx, tx, shopID)
+	if err != nil {
+		return nil, err
+	}
+	out := []Driver{}
+	for _, m := range members {
+		if m.Role == enum.RoleShopDriver {
+			out = append(out, Driver{ID: m.UserID, Name: m.Name})
+		}
+	}
+	return out, nil
+}
