@@ -4,6 +4,7 @@
 export const keys = {
   bootstrap: () => ["bootstrap"] as const,
   me: () => ["me"] as const,
+  addresses: () => ["addresses"] as const,
   home: (lat: number | null, lng: number | null) => ["home", lat, lng] as const,
   shop: (slug: string) => ["shop", slug] as const,
   products: (slug: string, category: string | null) => ["products", slug, category] as const,

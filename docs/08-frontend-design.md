@@ -149,6 +149,17 @@ Route folders: `/s/:slug` = `app/(customer)/s/[slug]/page.tsx`, `/order/:id` = `
 | `/console/admin/shops`, `/console/admin/shop/:id?tab=profile\|settings\|hours\|slots\|fees\|payment\|connector` | admin | Shop setup as tabs, with a readiness checklist |
 | `/console/admin/{catalog,sync-issues,coupons,orders,refunds,tickets,payouts,users,audit}` | admin | Lists + detail dialogs |
 
+### 4.1 Sign-in, guards and onboarding
+
+- **Sign-in modal** (`features/auth`): opened from the header, from a guard, or when a session is lost (the second `401` in `lib/api.ts`). Google's script loads only when the modal opens. The ID token goes to `POST /auth/google`; the answer (`me`) is written into the `bootstrap` cache.
+- **Invite link:** `/?invite=<43-character token>` opens the modal by itself and sends the token as `inviteToken`. After a successful accept the token is removed from the address bar and the person goes to `/console`.
+- **After sign-in:** a customer with an unverified phone goes to `/onboarding?next=<where they were>`. Team members skip onboarding. Nobody is forced through onboarding while only browsing; checkout (P30) sends them there.
+- **Onboarding** shows only the steps still needed, fixed when it opens: name (confirm the Google name), phone (Turnstile, then the SMS code), first address (map pin; the answer says which shops deliver there; "Add it later" is allowed). It returns to `safeNext(next)`.
+- **Guards** (`features/auth/guards.tsx`): `RequireUser` → `RequireRole` → `RequireTotp`. `/console` uses `ConsoleGate` (any team role). `/console/admin` adds `AdminGate` (super admin and a fresh authenticator code). Guards only decide what to show; the API checks every call again.
+- **Authenticator setup:** the API returns an `otpauth://totp/…` link. The browser draws the QR itself (`lib/qr.ts`, byte mode, level M, up to 213 bytes, no library) and also offers the link for a phone. Anything that is not an `otpauth://totp/` link is never drawn or linked.
+- **Account:** name (editable), e-mail (fixed), phone (a new SMS code changes it), up to 5 addresses, sign out here or everywhere. Self-service account deletion is not built (`DELETE /me`), so the page tells the person to call support.
+- **Third-party scripts** are loaded through `lib/loadScript.ts` with fixed addresses: Google Identity Services, Google Maps and Cloudflare Turnstile.
+
 ## 5. Data rules (fewer API calls, no duplication)
 
 1. **One fetch wrapper** (`lib/api.ts`): adds `credentials: "include"`, `X-Requested-With: gp-web`, JSON, `Idempotency-Key` when asked, maps error JSON to `ApiError{code, message, fields}`. On `401` it calls `/auth/refresh` **once**, then retries; second `401` → sign-in modal.
@@ -211,7 +222,7 @@ flowchart TD
 | Safe links | External links `rel="noopener noreferrer"`. Only `https:` URLs rendered as links/images (`safeUrl`). |
 | Safe redirects | `safeNext(next)` allows only paths starting with `/` and not `//`. |
 | CSP and headers | `web/public/_headers` + post-build script hashes (§11.4, `10-security.md` §5). |
-| Third-party scripts | Only Google Identity Services and Google Maps, loaded on demand. |
+| Third-party scripts | Only Google Identity Services, Google Maps and Cloudflare Turnstile (the phone bot check), loaded on demand. |
 | Images | Only from `img.<domain>` and Google Maps tiles. |
 | Input | `maxLength` on every input matching the API limit. |
 

@@ -38,6 +38,13 @@ describe("buildCsp", () => {
     expect(directive("script-src")).not.toMatch(/unsafe-(inline|eval)/);
   });
 
+  it("allows only the sign-in, map and bot-check scripts from outside", () => {
+    const outside = directive("script-src").split(" ").filter((s) => s.startsWith("https://"));
+    expect(outside).toEqual([
+      "https://accounts.google.com/gsi/client", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://challenges.cloudflare.com/turnstile/",
+    ]);
+  });
+
   it("allows this build's own hosts", () => {
     expect(directive("connect-src")).toContain("https://api.example.test");
     expect(directive("connect-src")).toContain("https://cart.example.test");
