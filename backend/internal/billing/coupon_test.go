@@ -99,3 +99,52 @@ func TestBuild_CouponNeedsLines(t *testing.T) {
 		t.Error("a discount without a coupon")
 	}
 }
+
+// WithCoupon works on a frozen bill: the fees stay, only the discount and the total move.
+func TestWithCoupon(t *testing.T) {
+	frozen := Totals{ItemsCents: 205500, DeliveryFeeCents: 15000, ServiceFeeCents: 2000, DiscountCents: 999, TotalCents: 1}
+	margin := money.Cents(5500)
+	at := func(c CouponSnapshot) *CouponSnapshot {
+		c.StartsAt, c.EndsAt, c.PerUserLimit = now.Add(-time.Hour), now.Add(time.Hour), 1
+		return &c
+	}
+	for name, tc := range map[string]struct {
+		c    *CouponSnapshot
+		want Totals
+	}{
+		"removed":         {nil, Totals{ItemsCents: 205500, DeliveryFeeCents: 15000, ServiceFeeCents: 2000, TotalCents: 222500}},
+		"percent":         {at(CouponSnapshot{Type: enum.CouponTypePercent, Value: 1000, FundedBy: enum.FundedByShop}), Totals{ItemsCents: 205500, DeliveryFeeCents: 15000, ServiceFeeCents: 2000, DiscountCents: 20550, TotalCents: 201950}},
+		"platform cap":    {at(CouponSnapshot{Type: enum.CouponTypeFixed, Value: 20000, FundedBy: enum.FundedByPlatform}), Totals{ItemsCents: 205500, DeliveryFeeCents: 15000, ServiceFeeCents: 2000, DiscountCents: 7500, TotalCents: 215000}}, // income = margin 5500 + fee 2000
+		"allow loss":      {at(CouponSnapshot{Type: enum.CouponTypeFixed, Value: 20000, FundedBy: enum.FundedByPlatform, AllowLoss: true}), Totals{ItemsCents: 205500, DeliveryFeeCents: 15000, ServiceFeeCents: 2000, DiscountCents: 20000, TotalCents: 202500}},
+		"capped by items": {at(CouponSnapshot{Type: enum.CouponTypeFixed, Value: 999999999, FundedBy: enum.FundedByShop}), Totals{ItemsCents: 205500, DeliveryFeeCents: 15000, ServiceFeeCents: 2000, TotalCents: 17000, DiscountCents: 205500}},
+	} {
+		got, err := WithCoupon(frozen, margin, tc.c, 0, now)
+		if err != nil || got != tc.want {
+			t.Errorf("%s: %+v, %v; want %+v", name, got, err, tc.want)
+		}
+	}
+	for name, tc := range map[string]struct {
+		c    *CouponSnapshot
+		uses int
+		want apperr.Code
+	}{
+		"not started": {&CouponSnapshot{Type: enum.CouponTypeFixed, Value: 1, StartsAt: now.Add(time.Minute), EndsAt: now.Add(time.Hour), PerUserLimit: 1}, 0, apperr.CouponExpired},
+		"used up":     {at(CouponSnapshot{Type: enum.CouponTypeFixed, Value: 1}), 1, apperr.CouponLimit},
+		"minimum":     {at(CouponSnapshot{Type: enum.CouponTypeFixed, Value: 1, MinOrderCents: 205501}), 0, apperr.CouponMinOrder},
+	} {
+		if _, err := WithCoupon(frozen, margin, tc.c, tc.uses, now); code(err) != tc.want {
+			t.Errorf("%s: %v, want %s", name, err, tc.want)
+		}
+	}
+	// Same facts, same answer as Build.
+	c := at(CouponSnapshot{Type: enum.CouponTypePercent, Value: 1000, FundedBy: enum.FundedByShop})
+	in := input(line(rice, 1), line(sugar, 2))
+	in.Coupon = c
+	built, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := WithCoupon(built.Totals, built.MarginCents, c, 0, now); err != nil || got != built.Totals {
+		t.Errorf("WithCoupon = %+v, %v; Build gave %+v", got, err, built.Totals)
+	}
+}

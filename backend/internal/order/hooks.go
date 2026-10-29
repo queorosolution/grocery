@@ -23,9 +23,9 @@ var hooks = map[string]hook{
 	// The bill is final: freeze it and start the payment timer.
 	"T02": approve, "T07": approve,
 	"T03": reviseBill,
-	// Release the slot place. T11 and T12 also release the coupon once coupons exist (P21).
+	// Release the slot place. An order that waited for payment also gives back its coupon.
 	"T04": releaseSlot, "T05": releaseSlot, "T06": releaseSlot, "T08": releaseSlot, "T09": releaseSlot,
-	"T11": releaseSlot, "T12": releaseSlot, "T19": releaseSlot,
+	"T11": releaseUnpaid, "T12": releaseUnpaid, "T19": releaseSlot,
 }
 
 // startReviewTimer is T01: the shop has the review timeout to answer.
@@ -42,6 +42,16 @@ func releaseSlot(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ Tran
 		return nil // a courier order has no slot
 	}
 	return s.delivery.ReleaseSlot(ctx, tx, *o.SlotID)
+}
+
+// releaseUnpaid is T11 and T12: the order was never paid, so both the place and
+// the coupon use it held go back.
+func releaseUnpaid(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, in TransitionInput) error {
+	if err := releaseSlot(ctx, s, tx, o, in); err != nil {
+		return err
+	}
+	_, err := s.coupons.Release(ctx, tx, o.ID)
+	return err
 }
 
 // approve is T02 and T07: the totals stop changing and the customer has the

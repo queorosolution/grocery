@@ -101,9 +101,18 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodGet, "/orders/{id}", User, d.Order.Get},
 			Route{nethttp.MethodPost, "/orders/{id}/accept-revision", User, d.Order.AcceptRevision},
 			Route{nethttp.MethodPost, "/orders/{id}/cancel", User, d.Order.Cancel},
+			Route{nethttp.MethodPost, "/orders/{id}/coupon", User, d.Order.ApplyCoupon},
+			Route{nethttp.MethodDelete, "/orders/{id}/coupon", User, d.Order.RemoveCoupon},
 			Route{nethttp.MethodGet, orders, review, d.Order.ConsoleList},
 			Route{nethttp.MethodGet, orders + "/{id}", review, d.Order.ConsoleGet},
 			Route{nethttp.MethodPost, orders + "/{id}/review", review, d.Order.Review},
+		)
+	}
+	if d.Coupon != nil {
+		table = append(table,
+			Route{nethttp.MethodGet, "/admin/coupons", Admin, d.Coupon.List},
+			Route{nethttp.MethodPost, "/admin/coupons", Admin, d.Coupon.Create},
+			Route{nethttp.MethodPatch, "/admin/coupons/{id}", Admin, d.Coupon.Update},
 		)
 	}
 	if d.Catalog != nil {

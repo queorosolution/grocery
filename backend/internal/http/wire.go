@@ -11,6 +11,7 @@ import (
 	"gp/internal/connector"
 	"gp/internal/connector/connaws"
 	"gp/internal/connector/source"
+	"gp/internal/coupon"
 	"gp/internal/delivery"
 	"gp/internal/events"
 	"gp/internal/events/eventsaws"
@@ -66,7 +67,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	sms := notify.New(logchannel.New(cfg.IsLocal())) // real SMS comes with P25
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)
 	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
-	orderSvc := order.NewService(database, shopSvc, deliverySvc, userSvc, catalogSvc, carts)
+	couponSvc := coupon.NewService(database)
+	orderSvc := order.NewService(database, shopSvc, deliverySvc, userSvc, catalogSvc, carts, couponSvc)
 	return Deps{
 		Config:      cfg,
 		Auth:        auth.NewHandler(authSvc, cfg),
@@ -78,6 +80,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Pricing:     pricing.NewHandler(pricingSvc),
 		Upload:      upload.NewHandler(uploadSvc, teamSvc),
 		Order:       order.NewHandler(orderSvc),
+		Coupon:      coupon.NewHandler(couponSvc),
 		Connector:   connectorHandler,
 		Audit:       audit.NewHandler(database),
 		Memberships: teamSvc,
