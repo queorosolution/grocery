@@ -20,7 +20,7 @@ func (s *Service) Quote(ctx context.Context, scope db.Scope, in QuoteInput) (Quo
 	}
 	var out Quote
 	err = s.db.Tx(ctx, scope, func(ctx context.Context, tx *db.Tx) error {
-		bill, err := s.price(ctx, tx, scope.UserID, in.AddressID, p)
+		bill, err := s.price(ctx, tx, scope.UserID, in, p)
 		if err != nil {
 			return err
 		}

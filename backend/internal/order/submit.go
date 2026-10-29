@@ -126,7 +126,7 @@ func (s *Service) place(ctx context.Context, tx *db.Tx, scope db.Scope, key stri
 	if err := lockCustomer(ctx, tx, scope.UserID); err != nil {
 		return nil, err
 	}
-	bill, err := s.price(ctx, tx, scope.UserID, in.AddressID, p)
+	bill, err := s.price(ctx, tx, scope.UserID, in.QuoteInput, p)
 	if err != nil {
 		return nil, err
 	}
