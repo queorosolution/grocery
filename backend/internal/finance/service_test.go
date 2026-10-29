@@ -68,3 +68,12 @@ func TestPaidEntries_Refuses(t *testing.T) {
 		}
 	}
 }
+
+func TestDeliveredRefusesANegativeFee(t *testing.T) {
+	if err := NewService().PostDelivered(t.Context(), nil, DeliveredFacts{DeliveryFeeCents: -1}); err == nil {
+		t.Error("a negative delivery fee was accepted")
+	}
+	if err := NewService().PostDelivered(t.Context(), nil, DeliveredFacts{}); err != nil {
+		t.Errorf("a free delivery: %v", err) // posts nothing, so it needs no transaction
+	}
+}

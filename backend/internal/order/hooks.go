@@ -6,9 +6,11 @@ import (
 
 	"gp/internal/events"
 	"gp/internal/finance"
+	"gp/internal/shared/apperr"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
+	"gp/internal/team"
 )
 
 // hook is the side effect of one move (docs/07 section 9 step 4). It runs in the
@@ -29,7 +31,14 @@ var hooks = map[string]hook{
 	// Release the slot place. An order that waited for payment also gives back its coupon.
 	"T04": releaseSlot, "T05": releaseSlot, "T06": releaseSlot, "T08": releaseSlot, "T09": releaseSlot,
 	"T11": releaseUnpaid, "T12": releaseUnpaid, "T19": releaseSlot,
+	// Fulfilment: the event of the move is all that picking and packing do. Sending out
+	// needs a driver and makes the delivery code; delivering posts the delivery fee.
+	"T13": noEffect, "T14": noEffect, "T15": sendOut, "T18": sendOut,
+	"T16": deliver, "T17": noEffect,
 }
+
+// noEffect is a move whose only effect is the history row and the event that every move writes.
+func noEffect(context.Context, *Service, *db.Tx, *orderRow, TransitionInput) error { return nil }
 
 // startReviewTimer is T01: the shop has the review timeout to answer.
 func startReviewTimer(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
@@ -73,6 +82,35 @@ func markPaid(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ Transit
 		return err
 	}
 	return s.coupons.Confirm(ctx, tx, o.ID)
+}
+
+// sendOut is T15 and T18: the order leaves with a driver the shop is allowed to
+// use, and a new code for the customer.
+func sendOut(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
+	if o.DriverID == nil {
+		return apperr.Validation(map[string]string{"driver": "required"})
+	}
+	if _, err := s.driverFor(ctx, *o.DriverID, o.ShopID, true); err != nil {
+		return err
+	}
+	return s.issueCode(ctx, tx, o.ID)
+}
+
+// deliver is T16: the delivery fee goes to the shop if its own driver delivered,
+// else to the platform. By now the code was checked (or the admin overrode it).
+func deliver(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
+	f := finance.DeliveredFacts{OrderID: o.ID, ShopID: o.ShopID}
+	if err := tx.QueryRow(ctx, `SELECT delivery_fee_cents FROM orders WHERE id = $1`, o.ID).Scan(&f.DeliveryFeeCents); err != nil {
+		return err
+	}
+	if o.DriverID != nil {
+		kind, err := s.driverKind(ctx, *o.DriverID, o.ShopID)
+		if err != nil {
+			return err
+		}
+		f.ByShopDriver = kind == team.ShopDriver
+	}
+	return s.finance.PostDelivered(ctx, tx, f)
 }
 
 // approve is T02 and T07: the totals stop changing and the customer has the

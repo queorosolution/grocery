@@ -16,6 +16,7 @@ import (
 	"gp/internal/shared/crypt"
 	"gp/internal/shared/db"
 	"gp/internal/shared/ratelimit"
+	"gp/internal/shared/secrets"
 	"gp/internal/shared/validate"
 )
 
@@ -39,15 +40,7 @@ type TotpSetup struct {
 }
 
 func (s *Service) ring(ctx context.Context) (*crypt.Ring, error) {
-	raw, err := s.secrets.Get(ctx, "enc/key")
-	if err != nil {
-		return nil, err
-	}
-	key, err := crypt.ParseKey(raw)
-	if err != nil {
-		return nil, err
-	}
-	return crypt.NewRing(totpKeyVersion, map[byte][]byte{totpKeyVersion: key})
+	return secrets.Ring(ctx, s.secrets, totpKeyVersion)
 }
 
 // totpAAD ties a sealed secret to its owner, so a row copied to another user

@@ -24,6 +24,15 @@ func (s *Service) detail(ctx context.Context, tx *db.Tx, scope db.Scope, id uuid
 	if err != nil || !found || !inScope(scope, d.orderRow) {
 		return Detail{}, apperr.NotFoundUnless(err, found && inScope(scope, d.orderRow))
 	}
+	if v == ViewCustomer && d.Status == enum.OrderStatusOutForDelivery {
+		code, _, ok, err := s.codeOf(ctx, tx, d.ID)
+		if err != nil {
+			return Detail{}, err
+		}
+		if ok {
+			d.DeliveryCode = &code
+		}
+	}
 	if v != ViewDriver {
 		t, err := s.shops.TimeoutsOf(ctx, tx, d.ShopID)
 		if err != nil {
