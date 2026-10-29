@@ -136,7 +136,18 @@
     "signOut": "Sign out",
     "signOutAll": "Sign out everywhere",
     "signOutAllBody": "You will be signed out on every phone and computer.",
-    "deleteInfo": "To delete your account, call us."
+    "delete": "Delete account",
+    "deleteTitle": "Delete your account?",
+    "deleteBody": "You will be signed out everywhere and cannot sign in again. We remove your phone number and saved addresses. Your past orders stay in the shop's and our records.",
+    "deleteType": "Type DELETE to confirm",
+    "deleteConfirm": "Delete my account",
+    "deleteBlocked": "You can't delete your account yet:",
+    "blocked": {
+      "orders": "You have an order in progress or a bill that is not paid yet.",
+      "refunds": "A refund is still being paid out to you.",
+      "team": "You work in a shop team. Ask the owner or the admin to remove you first.",
+      "cart": "Your cart still has items. Empty it first."
+    }
   },
   "address": {
     "label": "Name this place",

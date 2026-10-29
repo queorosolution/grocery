@@ -45,10 +45,33 @@ describe("AccountScreen", () => {
     expect(calls(fake, "POST /auth/logout")[0]![1].body).toEqual({ all: false });
   });
 
-  it("tells the person to call to delete the account (the self-service delete is not built)", async () => {
-    mockApi({ "GET /bootstrap": () => bootstrap(me()) });
+  it("deletes the account only after the word is typed, then goes home", async () => {
+    const fake = mockApi({ "GET /bootstrap": () => bootstrap(me()), "DELETE /me": () => undefined });
     renderScreen(<AccountScreen />);
-    expect(await screen.findByRole("link", { name: "+94770000000" })).toHaveAttribute("href", "tel:+94770000000");
+    await userEvent.click(await screen.findByRole("button", { name: "Delete account" }));
+    const confirm = screen.getByRole("button", { name: "Delete my account" });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("Type DELETE to confirm"), "delete");
+    expect(confirm).toBeDisabled(); // the word is case-sensitive
+    await userEvent.clear(screen.getByLabelText("Type DELETE to confirm"));
+    await userEvent.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await userEvent.click(confirm);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    expect(calls(fake, "DELETE /me")[0]![1].body).toEqual({ confirm: "DELETE" });
+  });
+
+  it("lists every reason when the API refuses, and stays signed in", async () => {
+    mockApi({
+      "GET /bootstrap": () => bootstrap(me()),
+      "DELETE /me": () => new ApiError(409, "ACCOUNT_NOT_DELETABLE", "Finish your open orders.", { orders: "open", refunds: "pending" }),
+    });
+    renderScreen(<AccountScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: "Delete account" }));
+    await userEvent.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await userEvent.click(screen.getByRole("button", { name: "Delete my account" }));
+    expect(await screen.findByText("You have an order in progress or a bill that is not paid yet.")).toBeInTheDocument();
+    expect(screen.getByText("A refund is still being paid out to you.")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
   });
 });
 

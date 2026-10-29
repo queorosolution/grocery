@@ -261,6 +261,6 @@ SELECT set_config('app.user_id',   $1, true),
 | `otp_codes`, `rate_counters`, `idempotency_keys`, `processed_events` | 7 days |
 | `connector_runs` | 90 days |
 | `notifications` | 1 year |
-| Deleted user | Name → "Deleted user", email → `deleted+<id>@invalid`, phone removed, addresses deleted. Orders keep the address snapshot with the phone removed. |
+| Deleted user (soft delete) | `status = DELETED`, sessions revoked, phone and addresses removed. Name and e-mail stay (history, refunds and the ledger need the owner; a later job may anonymise them after a retention period). Orders keep their address snapshot. Never a hard delete. |
 
 Cleanup runs inside the nightly `stats-rollup` job (one DB wake per day).

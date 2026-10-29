@@ -132,6 +132,7 @@
     "QTY_LIMIT": { "http": 409, "message": "You can't order that many of this item." },
     "CART_EMPTY": { "http": 409, "message": "Your cart is empty." },
     "TOO_MANY_OPEN_ORDERS": { "http": 409, "message": "Please finish or cancel your waiting orders first." },
+    "ACCOUNT_NOT_DELETABLE": { "http": 409, "message": "Finish your open orders and refunds before deleting your account." },
     "BOT_CHECK_FAILED": { "http": 400, "message": "Please complete the check and try again." },
     "CART_WRONG_SHOP": { "http": 409, "message": "This cart belongs to another shop." },
     "CART_UNAVAILABLE": { "http": 503, "message": "We can't reach your cart right now. Please try again." },

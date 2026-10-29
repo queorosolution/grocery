@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"gp/internal/billing"
+	"gp/internal/shared/apperr"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
 	"gp/internal/shared/ids"
@@ -130,7 +131,12 @@ func insertLine(ctx context.Context, tx *db.Tx, orderID, shopID uuid.UUID, revis
 // pass the "fewer than 3 open orders" check.
 func lockCustomer(ctx context.Context, tx *db.Tx, userID uuid.UUID) error {
 	var id uuid.UUID
-	return tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&id)
+	// A closed or blocked account may still hold a valid access token for a few minutes.
+	err := tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE`, userID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperr.New(apperr.Unauthenticated)
+	}
+	return err
 }
 
 // openUnpaid counts the orders the customer has not paid for yet and that are still alive.

@@ -171,10 +171,12 @@ Body `{ "all": false }` (optional). Ends this sign-in, or every sign-in of the u
 | `PATCH` | `/me/addresses/{id}` | user | same fields, all optional, at least one; `landmark: ""` clears it | `{ address, deliveringShops }` (same shape as create, so the page can re-check after the pin moves) |
 | `DELETE` | `/me/addresses/{id}` | user | — | `204`. If it was the default, the newest remaining address becomes the default. |
 
+**Deleting an account (`DELETE /me`).** The account is closed, never erased (history may need it): `users.status` becomes `DELETED`, every session is revoked, the phone number, the saved addresses and any waiting code are removed, and the name and e-mail stay so old orders, refunds and the ledger keep their owner. Orders keep their own address snapshot. A deleted account cannot sign in again (`403`). The call is refused with `ACCOUNT_NOT_DELETABLE` and **all** reasons in `fields`, so the page can list them: `orders: "open"` (any order not in a final status, which includes a bill not yet answered or not yet paid), `refunds: "pending"` (a refund asked for or approved but not paid out), `team: "member"` (a shop or platform membership; remove it first). The cart lives in the cart service and has no owner we can see, so the web app checks it and refuses before calling (docs/08 section 4.1). The row lock on the user also holds back a bill sent at the same moment.
+
 Address rules: `label` 1–30, `line1` 3–160, `landmark` ≤ 120 characters; the pin must be inside Sri Lanka (`lat` 5.8–10.0, `lng` 79.4–82.0); at most 5 per user (`400`, `fields.addresses = "max_5"`); the first address is the default; `isDefault: true` moves the default; the default cannot be switched off, only moved (`fields.isDefault`). Another user's address is `404`.
 
 `deliveringShops` lists the active shops whose delivery distance covers the pin (straight line × road factor ≤ `maxKm` of the shop's fee rule, else the platform default), nearest first. `distanceKm` is the straight line with two decimals. A shop with no fee rule at all is not listed.
-| `DELETE` | `/me` | user | `{ "confirm": "DELETE" }` | `204`, account anonymised (not built yet: it needs orders, so it comes with the order prompts) |
+| `DELETE` | `/me` | user | `{ "confirm": "DELETE" }` | `204` and the cookies are cleared. **Soft delete**: see below. `VALIDATION_ERROR` (`fields.confirm`) when the word is not `DELETE`; `ACCOUNT_NOT_DELETABLE` (`409`) while anything is open. |
 | `GET` | `/shops/{slug}/buy-again` | user | — | `{ "data": [ product card ] }`: what the caller bought in this shop before, latest purchase first, at most 20, with today's `onlinePriceCents` and `available` (same card as the shop product list). Never cached. Unknown or not-active shop → `404`. |
 
 ---

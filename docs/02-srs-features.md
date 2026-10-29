@@ -41,7 +41,7 @@
 | FR-AUTH-06 | New customer onboarding: name (pre-filled from Google), phone, first address. Max 3 screens. | M |
 | FR-AUTH-07 | Phone is verified with an SMS OTP before the first bill is submitted. Sending a code needs a Cloudflare Turnstile check. | M |
 | FR-AUTH-08 | Logout revokes the session on the server. "Log out everywhere" revokes all sessions. | S |
-| FR-AUTH-09 | User can request account deletion. Personal data is removed or anonymised; orders keep anonymised snapshots. | S |
+| FR-AUTH-09 | User can delete their account (soft delete only). Refused while an order is open (unpaid bills included), a refund is unpaid, the cart has items, or the user is a shop or platform member. Phone and addresses are removed; name and e-mail stay for history. | S |
 
 ## F2 — Addresses and location
 

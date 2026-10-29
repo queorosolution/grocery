@@ -35,3 +35,15 @@ func (s *Service) Open(ctx context.Context, tx *db.Tx, in OpenInput) (uuid.UUID,
 	}
 	return id, announce(ctx, tx, id, n)
 }
+
+// OpenWork tells the account module whether the customer is still owed money:
+// a refund asked for or approved but not yet paid out (FR-AUTH-09).
+func (s *Service) OpenWork(ctx context.Context, tx *db.Tx, userID uuid.UUID) (map[string]string, error) {
+	var n int
+	err := tx.QueryRow(ctx, `SELECT count(*) FROM refunds r JOIN orders o ON o.id = r.order_id
+		WHERE o.customer_id = $1 AND r.status IN ('REQUESTED', 'APPROVED')`, userID).Scan(&n)
+	if err != nil || n == 0 {
+		return nil, err
+	}
+	return map[string]string{"refunds": "pending"}, nil
+}
