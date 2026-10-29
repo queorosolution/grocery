@@ -49,7 +49,7 @@ jobs:
       - name: Contracts match schema and generated code
         run: make check-contracts
       - name: gofmt, vet
-        run: make lint
+        run: make lint-go
       - name: staticcheck
         working-directory: backend
         run: staticcheck ./...
@@ -108,7 +108,13 @@ jobs:
           npm run lint
           npm run typecheck
           npm test
+          # The generated rewrite file must be up to date (docs/08 section 11.2).
+          npm run gen:redirects
+          git diff --exit-code -- public/_redirects
+          # Build with the example config: next build, then the CSP hashes and their check.
+          cp .env.example .env.production.local
           npm run build
+          npm run check:csp
           npm audit --audit-level=high
 
   secrets:

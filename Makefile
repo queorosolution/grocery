@@ -1,5 +1,5 @@
 # Run from the repo root. Generated files are committed, so CI runs `make gen` and checks for no diff.
-.PHONY: gen check-contracts test test-schema migrate-local lint dev-api validate build migrate deploy
+.PHONY: gen check-contracts test test-schema migrate-local lint lint-go dev-api validate build migrate deploy
 
 export SAM_CLI_TELEMETRY := 0
 
@@ -21,9 +21,12 @@ test-schema:
 migrate-local:
 	cd backend && MIGRATE_DATABASE_URL="$${MIGRATE_DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/gp?sslmode=disable}" go run ./cmd/migrate up
 
-lint:
+# Go only. The backend CI job has no node_modules, so it runs this; the web job runs the web lint itself.
+lint-go:
 	@test -z "$$(gofmt -l backend)" || (gofmt -l backend; echo "gofmt: run gofmt -w"; exit 1)
 	cd backend && go vet ./...
+
+lint: lint-go
 	@if [ -f web/package.json ]; then cd web && npm run lint --if-present; fi
 
 # Runs the API on :8080 (needs a .env copied from .env.example; refuses to run unless APP_ENV=local).

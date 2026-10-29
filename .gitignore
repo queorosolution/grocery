@@ -6,3 +6,8 @@ out/
 .aws-sam/
 node_modules/
 *.local
+
+# web build output
+.generated/
+*.tsbuildinfo
+next-env.d.ts

@@ -276,6 +276,7 @@ We build plain HTML/JS files once and serve them from Cloudflare Pages. No Next 
   1. reads every `out/**/*.html`,
   2. collects the SHA-256 hash of each inline script,
   3. writes one `_headers` rule per page with `script-src 'self' 'sha256-…' …` (plus the allowed Google hosts).
+- Cloudflare `_headers` limits (checked by `csp-hashes.mjs`, the build fails if exceeded): **100 rules**, **2,000 characters per line**, one `*` per pattern. A page that Cloudflare rewrites (`/order/:id`) gets its rule under the **rewrite's** pattern, because headers match the real URL, not the file. Every page rule starts with `! Content-Security-Policy` so it replaces the fallback rule on `/*` (that fallback holds the hashes of `404.html`, which serves new shop pages). Many shops mean many rules: with a lot of pre-built shop pages, this is the limit you will meet first.
 - No `'unsafe-inline'` for scripts. Check after deploy: browser console shows **no CSP errors** on every page, and each header line stays under Cloudflare's header size limit.
 - The build fails if any inline script has no hash.
 
