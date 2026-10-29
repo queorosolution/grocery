@@ -30,6 +30,7 @@ import (
 	"gp/internal/shared/secrets"
 	"gp/internal/shared/turnstile"
 	"gp/internal/shop"
+	"gp/internal/stats"
 	"gp/internal/team"
 	"gp/internal/upload"
 	"gp/internal/user"
@@ -102,6 +103,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Coupon:      coupon.NewHandler(couponSvc),
 		Payment:     paymentHandler,
 		Notify:      notify.NewHandler(notifySvc),
+		Stats:       stats.NewHandler(stats.NewService(database, orderSvc)),
 		Refund:      refund.NewHandler(refundSvc),
 		Payouts:     finance.NewHandler(finance.NewPayouts(database)),
 		Connector:   connectorHandler,

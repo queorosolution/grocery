@@ -23,6 +23,7 @@ import (
 	"gp/internal/shared/config"
 	"gp/internal/shared/httpx"
 	"gp/internal/shop"
+	"gp/internal/stats"
 	"gp/internal/team"
 	"gp/internal/upload"
 	"gp/internal/user"
@@ -61,6 +62,8 @@ type Deps struct {
 	// the shop's balance and the admin's payouts.
 	Refund  *refund.Handler
 	Payouts *finance.Handler
+	// Stats serves the shop's and the admin's dashboards.
+	Stats *stats.Handler
 	// Notify serves the admin's SMS usage report.
 	Notify *notify.Handler
 	// Connector serves the shop database connector (admin only).

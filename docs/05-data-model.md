@@ -164,7 +164,7 @@ erDiagram
 | `payouts` | Payments to shops | finance | `PAID` needs a bank reference. |
 | `customer_products` | Buy-again history | worker | No prices stored. |
 | `notifications` | Sent messages log | worker | Phone masked. |
-| `shop_daily_stats` | Dashboard numbers | worker | One row per shop per Colombo day. |
+| `shop_daily_stats` | Dashboard numbers | stats (worker) | One row per shop per Colombo day. `platform_income_cents` = margin + service fee; `shop_items_cents` = items less margin; `gmv_cents` is gross at payment. |
 | `audit_log` | Who changed what | all modules | Append-only. Shops can write, only admin can read. |
 | `outbox`, `processed_events` | Reliable events | all / worker | See `07-backend-design.md`. |
 | `idempotency_keys` | Safe retries of POSTs | api (`shared/idem`): claimed in the same transaction as the work | Answers retries for 24 h; the sweep deletes rows older than 7 days. |

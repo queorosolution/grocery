@@ -142,6 +142,12 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPost, "/admin/payouts/{id}/paid", Admin, d.Payouts.Paid},
 		)
 	}
+	if d.Stats != nil {
+		table = append(table,
+			Route{nethttp.MethodGet, "/console/shops/{shopId}/dashboard", Perm(enum.PermissionDashboardShopOps), d.Stats.Shop},
+			Route{nethttp.MethodGet, "/admin/dashboard", Admin, d.Stats.Admin},
+		)
+	}
 	if d.Notify != nil {
 		table = append(table, Route{nethttp.MethodGet, "/admin/notifications/usage", Admin, d.Notify.Usage})
 	}

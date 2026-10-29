@@ -13,6 +13,7 @@ import (
 	"gp/internal/events"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
+	"gp/internal/stats"
 	"gp/internal/worker"
 	"gp/test/testdb"
 )
@@ -51,7 +52,7 @@ func newRig(t *testing.T) *rig {
 		return nil
 	}})
 	pub := events.NewPublisher(env.DB, r.q, sched{})
-	r.w = worker.New(env.DB, reg, worker.Jobs(pub))
+	r.w = worker.New(env.DB, reg, worker.Jobs(pub, stats.NewService(env.DB, nil)))
 	return r
 }
 

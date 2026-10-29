@@ -42,6 +42,7 @@ import (
 	"gp/internal/shared/config"
 	"gp/internal/shared/enum"
 	"gp/internal/shop"
+	"gp/internal/stats"
 	"gp/internal/team"
 	"gp/internal/upload"
 	"gp/internal/user"
@@ -154,6 +155,8 @@ func New(t *testing.T) *App {
 	orderSvc.SetRefunds(refundSvc)
 	consumer.New(notifySvc, orderSvc, shopSvc, userSvc, consumer.Config{App: cfg.PlatformName, Domain: cfg.PlatformDomain, AdminPhone: cfg.AdminAlertPhone}).Register(reg)
 	refundSvc.SetOrders(orderSvc)
+	statsSvc := stats.NewService(env.DB, orderSvc)
+	statsSvc.Register(reg)
 	paymentSvc := payment.NewService(env.DB, orderSvc, shopSvc, refundSvc, payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+apihttp.Base+payment.NotifyPattern),
 		enum.PaymentProviderManual:  manual.New(),
@@ -171,6 +174,7 @@ func New(t *testing.T) *App {
 		Coupon:    coupon.NewHandler(couponSvc),
 		Payment:   paymentHandler,
 		Notify:    notify.NewHandler(notifySvc),
+		Stats:     stats.NewHandler(statsSvc),
 		Refund:    refund.NewHandler(refundSvc),
 		Payouts:   finance.NewHandler(finance.NewPayouts(env.DB)),
 		Connector: connectorHandler,

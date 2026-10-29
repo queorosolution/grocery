@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"gp/internal/shared/clock"
 	"gp/internal/shared/db"
@@ -79,9 +80,16 @@ func (s *Service) alreadySent(ctx context.Context, m Message) (bool, error) {
 
 // sentToday counts the SMS sent since midnight, Colombo time. The cap alerts are
 // not counted: they report the cap and must always get through.
-func sentToday(ctx context.Context, tx *db.Tx) (n int, err error) {
-	err = tx.QueryRow(ctx, `SELECT count(*) FROM notifications WHERE channel = 'SMS' AND status = 'SENT' AND template NOT LIKE 'admin.cap%' AND created_at >= $1`,
-		clock.StartOfDay(clock.Now())).Scan(&n)
+func sentToday(ctx context.Context, tx *db.Tx) (int, error) {
+	start := clock.StartOfDay(clock.Now())
+	return SentBetween(ctx, tx, start, start.AddDate(0, 0, 1))
+}
+
+// SentBetween counts the SMS sent in [from, to), for the admin's dashboard. Like
+// sentToday it leaves out the cap alerts.
+func SentBetween(ctx context.Context, tx *db.Tx, from, to time.Time) (n int, err error) {
+	err = tx.QueryRow(ctx, `SELECT count(*) FROM notifications WHERE channel = 'SMS' AND status = 'SENT' AND template NOT LIKE 'admin.cap%' AND created_at >= $1 AND created_at < $2`,
+		from, to).Scan(&n)
 	return n, err
 }
 

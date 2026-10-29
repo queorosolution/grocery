@@ -17,6 +17,7 @@ import (
 	"gp/internal/shared/secrets"
 	"gp/internal/shop"
 	"gp/internal/site"
+	"gp/internal/stats"
 	"gp/internal/user"
 )
 
@@ -51,26 +52,28 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Worker, 
 	catalog.NewBuyAgain().Register(registry)
 	// The texts only read: the order service needs the database and the key that
 	// seals delivery codes, and the user service needs nothing but the database.
-	consumer.New(notifySvc, order.NewService(order.Deps{DB: database, Secrets: sec}), shopSvc, user.NewService(database, sec, nil, nil, nil, ""),
+	orderSvc := order.NewService(order.Deps{DB: database, Secrets: sec})
+	consumer.New(notifySvc, orderSvc, shopSvc, user.NewService(database, sec, nil, nil, nil, ""),
 		consumer.Config{App: cfg.PlatformName, Domain: cfg.PlatformDomain, AdminPhone: cfg.AdminAlertPhone}).Register(registry)
-	// The stats consumers register here when their module arrives.
+	statsSvc := stats.NewService(database, orderSvc)
+	statsSvc.Register(registry)
 
-	return New(database, registry, Jobs(publisher)), database.Close, nil
+	return New(database, registry, Jobs(publisher, statsSvc)), database.Close, nil
 }
 
 // Jobs are the scheduled tasks, by the "type" of the direct invoke.
-func Jobs(publisher *events.Publisher) map[string]Job {
+func Jobs(publisher *events.Publisher, statsSvc *stats.Service) map[string]Job {
 	return map[string]Job{
 		"outbox.sweep": func(ctx context.Context) error {
 			res, err := publisher.Sweep(ctx)
 			logx.From(ctx).Info("worker.outbox_sweep", "found", res.Found, "sent", res.Sent, "pruned", res.Pruned)
 			return err
 		},
-		// The daily stats roll-up arrives with the stats module; until then the
-		// schedule fires and finds nothing to close.
+		// The nightly job: it deletes what is past its retention (docs/05 section 7).
 		"stats.rollup": func(ctx context.Context) error {
-			logx.From(ctx).Info("worker.stats_rollup", "closed", 0)
-			return nil
+			deleted, err := statsSvc.Rollup(ctx)
+			logx.From(ctx).Info("worker.stats_rollup", "deleted", deleted)
+			return err
 		},
 	}
 }
