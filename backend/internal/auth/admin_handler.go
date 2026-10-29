@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"gp/internal/shared/apperr"
-	"gp/internal/shared/authn"
+	"gp/internal/shared/authz"
 	"gp/internal/shared/enum"
 	"gp/internal/shared/httpx"
 )
@@ -27,7 +27,11 @@ type statusBody struct {
 
 // SetUserStatus handles PATCH /admin/users/{id}.
 func (h *Handler) SetUserStatus(w http.ResponseWriter, r *http.Request) {
-	actor, _ := authn.From(r.Context())
+	scope, ok := authz.ScopeFrom(r.Context())
+	if !ok {
+		httpx.Error(w, r, apperr.New(apperr.Forbidden))
+		return
+	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		httpx.Error(w, r, apperr.New(apperr.NotFound))
@@ -38,7 +42,7 @@ func (h *Handler) SetUserStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	if err := h.svc.SetUserStatus(r.Context(), actor.UserID, id, in.Status); err != nil {
+	if err := h.svc.SetUserStatus(r.Context(), scope, id, in.Status); err != nil {
 		httpx.Error(w, r, err)
 		return
 	}

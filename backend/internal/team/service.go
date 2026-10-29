@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"gp/internal/audit"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authz"
 	"gp/internal/shared/clock"
@@ -65,7 +66,7 @@ func (s *Service) Invite(ctx context.Context, scope db.Scope, shopID uuid.UUID, 
 	if in.Role != enum.RoleShopStaff {
 		in.CanEditProducts = false // only staff carry the flag
 	}
-	return s.issue(ctx, scope.UserID, &shopID, in)
+	return s.issue(ctx, scope, &shopID, in)
 }
 
 // AdminInvite creates any invite, including owners and platform drivers.
@@ -86,10 +87,10 @@ func (s *Service) AdminInvite(ctx context.Context, scope db.Scope, shopID *uuid.
 	if in.Role != enum.RoleShopStaff {
 		in.CanEditProducts = false
 	}
-	return s.issue(ctx, scope.UserID, shopID, in)
+	return s.issue(ctx, scope, shopID, in)
 }
 
-func (s *Service) issue(ctx context.Context, invitedBy uuid.UUID, shopID *uuid.UUID, in InviteInput) (Issued, error) {
+func (s *Service) issue(ctx context.Context, scope db.Scope, shopID *uuid.UUID, in InviteInput) (Issued, error) {
 	token := ids.Token()
 	var inv Invite
 	err := s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) (err error) {
@@ -104,9 +105,15 @@ func (s *Service) issue(ctx context.Context, invitedBy uuid.UUID, shopID *uuid.U
 		}
 		inv, err = insertInvite(ctx, tx, newInvite{
 			Email: in.Email, ShopID: shopID, Role: in.Role, CanEditProducts: in.CanEditProducts,
-			TokenHash: crypt.HashToken(token), InvitedBy: invitedBy, ExpiresAt: clock.Now().Add(InviteTTL),
+			TokenHash: crypt.HashToken(token), InvitedBy: scope.UserID, ExpiresAt: clock.Now().Add(InviteTTL),
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		// The token is not audited: only its hash is stored anywhere.
+		return audit.Write(ctx, tx, scope, audit.Entry{
+			Action: "invite.create", Entity: "invite", EntityID: inv.ID.String(), ShopID: shopOf(shopID), After: inv,
+		})
 	})
 	if err != nil {
 		return Issued{}, err
@@ -115,7 +122,7 @@ func (s *Service) issue(ctx context.Context, invitedBy uuid.UUID, shopID *uuid.U
 }
 
 // RevokeInvite cancels a pending invite (admin).
-func (s *Service) RevokeInvite(ctx context.Context, id uuid.UUID) error {
+func (s *Service) RevokeInvite(ctx context.Context, scope db.Scope, id uuid.UUID) error {
 	return s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
 		ok, err := revokeInvite(ctx, tx, id)
 		if err != nil {
@@ -124,7 +131,7 @@ func (s *Service) RevokeInvite(ctx context.Context, id uuid.UUID) error {
 		if !ok {
 			return apperr.New(apperr.NotFound)
 		}
-		return nil
+		return audit.Write(ctx, tx, scope, audit.Entry{Action: "invite.revoke", Entity: "invite", EntityID: id.String()})
 	})
 }
 
@@ -174,28 +181,36 @@ func (s *Service) Change(ctx context.Context, scope db.Scope, shopID, id uuid.UU
 		if in.Role != nil {
 			role = *in.Role
 		}
-		canEdit, err := currentCanEdit(ctx, tx, id)
+		wasEdit, err := currentCanEdit(ctx, tx, id)
 		if err != nil {
 			return err
 		}
+		canEdit := wasEdit
 		if in.CanEditProducts != nil {
 			canEdit = *in.CanEditProducts
 		}
 		if role != enum.RoleShopStaff {
 			canEdit = false
 		}
+		type state struct {
+			Role            enum.Role `json:"role"`
+			CanEditProducts bool      `json:"canEditProducts"`
+		}
 		if err := updateMember(ctx, tx, id, role, canEdit); err != nil {
-			if isUniqueViolation(err) {
+			if db.IsUniqueViolation(err) {
 				return apperr.New(apperr.Conflict)
 			}
 			return err
 		}
-		return nil
+		return audit.Write(ctx, tx, scope, audit.Entry{
+			Action: "team.change", Entity: "membership", EntityID: id.String(), ShopID: shopID,
+			Before: state{m.Role, wasEdit}, After: state{role, canEdit},
+		})
 	})
 }
 
 // Remove ends a membership. The last owner of a shop cannot be removed.
-func (s *Service) Remove(ctx context.Context, shopID, id uuid.UUID) error {
+func (s *Service) Remove(ctx context.Context, scope db.Scope, shopID, id uuid.UUID) error {
 	return s.db.Tx(ctx, db.System(), func(ctx context.Context, tx *db.Tx) error {
 		m, found, err := memberOf(ctx, tx, shopID, id)
 		if err != nil {
@@ -213,6 +228,19 @@ func (s *Service) Remove(ctx context.Context, shopID, id uuid.UUID) error {
 				return apperr.New(apperr.Conflict)
 			}
 		}
-		return removeMember(ctx, tx, id)
+		if err := removeMember(ctx, tx, id); err != nil {
+			return err
+		}
+		return audit.Write(ctx, tx, scope, audit.Entry{
+			Action: "team.remove", Entity: "membership", EntityID: id.String(), ShopID: shopID,
+			Before: map[string]any{"role": m.Role, "userId": m.UserID},
+		})
 	})
+}
+
+func shopOf(id *uuid.UUID) uuid.UUID {
+	if id == nil {
+		return uuid.Nil
+	}
+	return *id
 }

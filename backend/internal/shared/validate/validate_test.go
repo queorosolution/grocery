@@ -121,3 +121,19 @@ func TestNoFailureMeansNilError(t *testing.T) {
 		t.Fatal("empty validator must return nil, not a typed nil")
 	}
 }
+
+func TestHTTPSURL(t *testing.T) {
+	good := []string{"https://cdn.example.test/logo.png", "https://a.b/c?d=e"}
+	bad := []string{"", "http://example.test/x", "javascript:alert(1)", "data:image/png;base64,AAAA",
+		"https://user:pw@example.test/x", "//example.test/x", "https:///x", "/relative", "https://" + strings.Repeat("a", 300) + ".test"}
+	for _, s := range good {
+		if err := New().HTTPSURL("u", s, 100).Err(); err != nil {
+			t.Errorf("%q rejected", s)
+		}
+	}
+	for _, s := range bad {
+		if err := New().HTTPSURL("u", s, 100).Err(); err == nil {
+			t.Errorf("%q accepted", s)
+		}
+	}
+}

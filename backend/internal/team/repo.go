@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"gp/internal/shared/authz"
 	"gp/internal/shared/clock"
@@ -222,9 +221,4 @@ func otherOwners(ctx context.Context, tx *db.Tx, shopID, except uuid.UUID) (int,
 		n++
 	}
 	return n, rows.Err()
-}
-
-func isUniqueViolation(err error) bool {
-	var pg *pgconn.PgError
-	return errors.As(err, &pg) && pg.Code == "23505"
 }

@@ -3,6 +3,7 @@ package db_test
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -180,6 +181,32 @@ func TestPanicIsNotSwallowed(t *testing.T) {
 		}
 	}()
 	env.DB.Tx(context.Background(), db.Public(), func(context.Context, *db.Tx) error { panic("bug") })
+}
+
+// A callback that ends its goroutine (t.Fatal does) must not leave the
+// connection inside an open transaction, or closing the pool would hang.
+func TestGoexitRollsBack(t *testing.T) {
+	env := testdb.New(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = env.DB.Tx(context.Background(), db.System(), func(ctx context.Context, tx *db.Tx) error {
+			if _, err := tx.Exec(ctx, `INSERT INTO users (google_sub, email, name) VALUES ('g', 'g@example.test', 'G')`); err != nil {
+				t.Error(err)
+			}
+			runtime.Goexit()
+			return nil
+		})
+	}()
+	<-done
+	var n, open int
+	if err := env.Owner.QueryRow(context.Background(), `SELECT count(*) FROM users`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("rows = %d, err %v", n, err)
+	}
+	if err := env.Owner.QueryRow(context.Background(),
+		`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state LIKE 'idle in transaction%'`).Scan(&open); err != nil || open != 0 {
+		t.Fatalf("open transactions = %d, err %v", open, err)
+	}
 }
 
 func TestAfterCommit(t *testing.T) {

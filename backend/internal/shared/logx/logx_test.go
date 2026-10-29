@@ -108,3 +108,18 @@ func TestParseLevel(t *testing.T) {
 		t.Fatal("unknown level accepted")
 	}
 }
+
+func TestRedactSecrets(t *testing.T) {
+	in := map[string]any{
+		"phone": "+94771234567", "email": "a@b.test", "merchantSecret": "hunter2",
+		"nested": []any{map[string]any{"token": "abc", "name": "Krishna"}},
+	}
+	got := RedactSecrets(in).(map[string]any)
+	if got["merchantSecret"] != "[redacted]" || got["phone"] != "+94771234567" || got["email"] != "a@b.test" {
+		t.Fatalf("got %v", got)
+	}
+	nested := got["nested"].([]any)[0].(map[string]any)
+	if nested["token"] != "[redacted]" || nested["name"] != "Krishna" {
+		t.Fatalf("nested %v", nested)
+	}
+}

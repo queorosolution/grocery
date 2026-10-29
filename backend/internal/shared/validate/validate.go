@@ -4,6 +4,7 @@ package validate
 
 import (
 	"net/mail"
+	"net/url"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -85,6 +86,16 @@ func (v *Validator) Email(field, s string) *Validator {
 	s = strings.TrimSpace(s)
 	addr, err := mail.ParseAddress(s)
 	if err != nil || addr.Address != s || len(s) > 254 {
+		return v.fail(field, "invalid")
+	}
+	return v
+}
+
+// HTTPSURL accepts an absolute https URL with a host, no credentials, up to max
+// characters. Anything else (http:, javascript:, data:, user:pass@) is refused.
+func (v *Validator) HTTPSURL(field, s string, max int) *Validator {
+	u, err := url.Parse(s)
+	if err != nil || len(s) > max || u.Scheme != "https" || u.Host == "" || u.User != nil {
 		return v.fail(field, "invalid")
 	}
 	return v

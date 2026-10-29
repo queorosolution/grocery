@@ -5,12 +5,15 @@ package http
 import (
 	nethttp "net/http"
 
+	"gp/internal/audit"
 	"gp/internal/auth"
+	"gp/internal/delivery"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
 	"gp/internal/shared/authz"
 	"gp/internal/shared/config"
 	"gp/internal/shared/httpx"
+	"gp/internal/shop"
 	"gp/internal/team"
 )
 
@@ -24,7 +27,12 @@ type Deps struct {
 	// routes work, and every guarded route answers 401.
 	Auth *auth.Handler
 	// Team serves the shop team and admin invites. Nil means no such routes.
-	Team         *team.Handler
+	Team *team.Handler
+	// Shop serves shops, settings, hours and payment accounts; Audit the log.
+	Shop *shop.Handler
+	// Delivery serves fee rules and delivery slots.
+	Delivery     *delivery.Handler
+	Audit        *audit.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
 	// Memberships loads the caller's roles for admin and perm: routes. Nil
 	// denies them all.
