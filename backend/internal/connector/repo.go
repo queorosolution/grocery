@@ -58,10 +58,16 @@ func setDisplay(ctx context.Context, tx *db.Tx, id uuid.UUID, display string) (C
 }
 
 // saveMapping stores the mapping and starts the next run from scratch: the old
-// cursor belonged to the old columns.
+// cursor and row fingerprints belonged to the old columns.
 func saveMapping(ctx context.Context, tx *db.Tx, id uuid.UUID, in MappingInput, changeColumn *string) (Connector, error) {
 	raw, err := json.Marshal(in.Columns)
 	if err != nil {
+		return Connector{}, err
+	}
+	// The saved row fingerprints belong to the old mapping: forget them, so the next
+	// full read looks at every row again.
+	if _, err := tx.Exec(ctx, `UPDATE shop_products SET source_hash = NULL
+		WHERE source_hash IS NOT NULL AND shop_id = (SELECT shop_id FROM connectors WHERE id = $1)`, id); err != nil {
 		return Connector{}, err
 	}
 	return scanConnector(tx.QueryRow(ctx, `

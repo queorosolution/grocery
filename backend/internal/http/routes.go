@@ -15,6 +15,9 @@ type Route struct {
 	Handler nethttp.HandlerFunc
 }
 
+// TriggerPattern is the signed call of a shop's own system (docs/06 section 7).
+const TriggerPattern = "/connectors/{id}/trigger"
+
 // Routes lists every API route. Patterns are relative to the /v1 base. It is
 // exported so the security tests can walk the same table the server serves.
 func Routes(d Deps) []Route {
@@ -124,6 +127,14 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodGet, "/admin/connectors/{id}/columns", Admin, d.Connector.Columns},
 			Route{nethttp.MethodPut, "/admin/connectors/{id}/mapping", Admin, d.Connector.SetMapping},
 			Route{nethttp.MethodPost, "/admin/connectors/{id}/preview", Admin, d.Connector.Preview},
+			Route{nethttp.MethodPost, "/admin/connectors/{id}/activate", Admin, d.Connector.Activate},
+			Route{nethttp.MethodPost, "/admin/connectors/{id}/pause", Admin, d.Connector.Pause},
+			Route{nethttp.MethodPost, "/admin/connectors/{id}/sync", Admin, d.Connector.Sync},
+			Route{nethttp.MethodPost, "/admin/connectors/{id}/trigger-secret", Admin, d.Connector.TriggerSecret},
+			Route{nethttp.MethodGet, "/admin/connectors/{id}/runs", Admin, d.Connector.Runs},
+			Route{nethttp.MethodGet, "/admin/sync-issues", Admin, d.Connector.Issues},
+			Route{nethttp.MethodPost, "/admin/sync-issues/{id}/resolve", Admin, d.Connector.Resolve},
+			Route{nethttp.MethodPost, TriggerPattern, Sig, d.Connector.Trigger},
 		)
 	}
 	if d.Upload != nil {

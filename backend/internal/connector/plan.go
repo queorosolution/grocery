@@ -31,6 +31,7 @@ type Existing struct {
 	ShopProductID  uuid.UUID
 	ShopPriceCents int64
 	MRPCents       *int64
+	SourceHash     []byte // fingerprint of the row the last run applied
 }
 
 // Match is what the database knows about a row.

@@ -23,7 +23,7 @@ func loadMatches(ctx context.Context, tx *db.Tx, shopID uuid.UUID, items []Item)
 	out := make(map[string]Match, len(items))
 
 	rows, err := tx.Query(ctx, `
-		SELECT external_id, id, shop_price_cents, mrp_cents FROM shop_products
+		SELECT external_id, id, shop_price_cents, mrp_cents, source_hash FROM shop_products
 		WHERE shop_id = $1 AND external_id = ANY($2)`, shopID, extIDs)
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func loadMatches(ctx context.Context, tx *db.Tx, shopID uuid.UUID, items []Item)
 	for rows.Next() {
 		var ext string
 		var e Existing
-		if err := rows.Scan(&ext, &e.ShopProductID, &e.ShopPriceCents, &e.MRPCents); err != nil {
+		if err := rows.Scan(&ext, &e.ShopProductID, &e.ShopPriceCents, &e.MRPCents, &e.SourceHash); err != nil {
 			rows.Close()
 			return nil, err
 		}

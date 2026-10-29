@@ -26,6 +26,7 @@ type Service struct {
 	secrets secrets.Store
 	src     source.Opener
 	imgBase string // IMG_BASE_URL: source image links are kept only under it
+	rt      Runtime
 }
 
 func NewService(d *db.DB, sec secrets.Store, src source.Opener, imgBaseURL string) *Service {
