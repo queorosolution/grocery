@@ -7,6 +7,7 @@ import { useMe } from "@/features/auth/api";
 import { RequireUser } from "@/features/auth/guards";
 import { Page } from "@/features/shell/Page";
 import { t } from "@/lib/i18n";
+import { DeleteCard } from "./DeleteCard";
 import { ProfileCard } from "./ProfileCard";
 import { SignOutCard } from "./SignOutCard";
 
@@ -23,6 +24,7 @@ function Body() {
         </Link>
       </Card>
       <SignOutCard />
+      <DeleteCard />
     </div>
   );
 }

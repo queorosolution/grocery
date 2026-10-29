@@ -33,6 +33,9 @@ type Service struct {
 	secrets  secrets.Getter
 	verifier IDTokenVerifier
 	team     *team.Service
+	// Asked before an account is deleted, and told to clear details after (delete.go).
+	blockers []Blocker
+	wipers   []Wiper
 }
 
 func NewService(cfg *config.Config, d *db.DB, s secrets.Getter, v IDTokenVerifier, t *team.Service) *Service {

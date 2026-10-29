@@ -78,3 +78,12 @@ export function usePhoneVerify() {
     onSuccess: (me) => setMe(client, me),
   });
 }
+
+/** Soft delete (DELETE /me). The API refuses with ACCOUNT_NOT_DELETABLE while anything is open. */
+export function useDeleteAccount() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>("/me", { method: "DELETE", body: { confirm: "DELETE" } }),
+    onSuccess: () => forgetUser(client),
+  });
+}

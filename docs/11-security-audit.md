@@ -115,7 +115,7 @@ Mapped to OWASP Top 10 (2021) and OWASP API Security Top 10 (2023) in the last c
 | DATA-04 | Delivery code visible to driver / shop | View mapper | Driver and console views never include `deliveryCode` | H | API3 |
 | DATA-05 | Account / shop enumeration | Generic auth errors; `404` for out-of-scope | Compare responses for existing vs non-existing other-shop ids → identical | M | API1 |
 | DATA-06 | Lost data | Neon PITR on; restore drill | Done once before go-live, noted in `14-deployment.md` | H | — |
-| DATA-07 | Deleted account data remains | `DELETE /me` anonymises | Test: after delete, no phone / email / addresses | M | — |
+| DATA-07 | Deleted account data remains | `DELETE /me` is a soft delete: phone and addresses removed, sessions revoked, sign-in refused | Test: after delete, no phone, addresses or session, and sign-in is `403` (name and e-mail stay on purpose) | M | — |
 | DATA-08 | Connection string returned by API | Write-only; masked display | `GET` connector → no password anywhere in JSON | C | API3 |
 | DATA-09 | Exact customer location in cache | Home `lat/lng` rounded to 2 decimals by client and server | Server rounds again before cache key | M | — |
 

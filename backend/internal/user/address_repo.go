@@ -2,10 +2,12 @@ package user
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"gp/internal/shared/apperr"
 	"gp/internal/shared/db"
 )
 
@@ -39,7 +41,12 @@ func listAddresses(ctx context.Context, tx *db.Tx, userID uuid.UUID) ([]Address,
 // cannot both pass the "max 5" check or leave two defaults.
 func lockUser(ctx context.Context, tx *db.Tx, userID uuid.UUID) error {
 	var id uuid.UUID
-	return tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&id)
+	// A closed or blocked account may still hold a valid access token for a few minutes.
+	err := tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE`, userID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperr.New(apperr.Unauthenticated)
+	}
+	return err
 }
 
 func countAddresses(ctx context.Context, tx *db.Tx, userID uuid.UUID) (int, error) {

@@ -84,6 +84,7 @@ func Routes(d Deps) []Route {
 	if d.User != nil {
 		table = append(table,
 			Route{nethttp.MethodPatch, "/me", User, d.User.SetName},
+			Route{nethttp.MethodDelete, "/me", User, d.Auth.DeleteMe},
 			Route{nethttp.MethodPost, "/me/phone/send", User, d.User.SendPhoneCode},
 			Route{nethttp.MethodPost, "/me/phone/verify", User, d.User.VerifyPhoneCode},
 			Route{nethttp.MethodGet, "/me/addresses", User, d.User.Addresses},

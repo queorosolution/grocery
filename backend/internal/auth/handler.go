@@ -6,6 +6,7 @@ import (
 
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
+	"gp/internal/shared/authz"
 	"gp/internal/shared/config"
 	"gp/internal/shared/httpx"
 )
@@ -101,6 +102,30 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.svc.Logout(r.Context(), actor, in.All); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	h.clearCookies(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type deleteBody struct {
+	Confirm string `json:"confirm"`
+}
+
+// DeleteMe handles DELETE /me: a soft delete, refused while anything is open.
+func (h *Handler) DeleteMe(w http.ResponseWriter, r *http.Request) {
+	scope, ok := authz.ScopeFrom(r.Context())
+	if !ok {
+		httpx.Error(w, r, apperr.New(apperr.Unauthenticated))
+		return
+	}
+	var in deleteBody
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	if err := h.svc.DeleteAccount(r.Context(), scope, in.Confirm); err != nil {
 		httpx.Error(w, r, err)
 		return
 	}

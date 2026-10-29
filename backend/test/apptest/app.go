@@ -153,6 +153,7 @@ func New(t *testing.T) *App {
 	orderSvc := order.NewService(order.Deps{DB: env.DB, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
 		Coupons: couponSvc, Finance: ledger, Drivers: teamSvc, Secrets: sec})
 	orderSvc.SetRefunds(refundSvc)
+	svc.OnDelete([]auth.Blocker{orderSvc, refundSvc, teamSvc}, []auth.Wiper{userSvc})
 	consumer.New(notifySvc, orderSvc, shopSvc, userSvc, consumer.Config{App: cfg.PlatformName, Domain: cfg.PlatformDomain, AdminPhone: cfg.AdminAlertPhone}).Register(reg)
 	refundSvc.SetOrders(orderSvc)
 	statsSvc := stats.NewService(env.DB, orderSvc)

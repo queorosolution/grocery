@@ -84,6 +84,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	orderSvc := order.NewService(order.Deps{DB: database, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
 		Coupons: couponSvc, Finance: ledger, Drivers: teamSvc, Secrets: sec})
 	orderSvc.SetRefunds(refundSvc)
+	authSvc.OnDelete([]auth.Blocker{orderSvc, refundSvc, teamSvc}, []auth.Wiper{userSvc})
 	refundSvc.SetOrders(orderSvc)
 	paymentHandler := payment.NewHandler(payment.NewService(database, orderSvc, shopSvc, refundSvc, payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+Base+payment.NotifyPattern),

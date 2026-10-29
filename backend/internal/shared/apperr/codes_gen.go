@@ -6,6 +6,7 @@ package apperr
 type Code string
 
 const (
+	AccountNotDeletable  Code = "ACCOUNT_NOT_DELETABLE"
 	BelowMinOrder        Code = "BELOW_MIN_ORDER"
 	BotCheckFailed       Code = "BOT_CHECK_FAILED"
 	CartEmpty            Code = "CART_EMPTY"
@@ -50,13 +51,13 @@ const (
 
 // Codes returns every contract error code, sorted by name.
 func Codes() []Code {
-	return []Code{BelowMinOrder, BotCheckFailed, CartEmpty, CartUnavailable, CartWrongShop, Conflict, ConnectorBusy, ConnectorTestFailed, CouponAlreadyApplied, CouponExpired, CouponInvalid, CouponLimit, CouponMinOrder, DeliveryCodeInvalid, DeliveryCodeLocked, Forbidden, IdempotencyMismatch, Internal, InvalidTransition, ItemUnavailable, NotFound, OtpInvalid, OtpLocked, OutOfRange, PayloadTooLarge, PaymentNotAvailable, PhoneNotVerified, QtyLimit, RateLimited, ShopClosed, ShopNotReady, SlotClosed, SlotFull, StaleOrder, TooManyOpenOrders, TotpInvalid, TotpRequired, Unauthenticated, UploadRejected, ValidationError}
+	return []Code{AccountNotDeletable, BelowMinOrder, BotCheckFailed, CartEmpty, CartUnavailable, CartWrongShop, Conflict, ConnectorBusy, ConnectorTestFailed, CouponAlreadyApplied, CouponExpired, CouponInvalid, CouponLimit, CouponMinOrder, DeliveryCodeInvalid, DeliveryCodeLocked, Forbidden, IdempotencyMismatch, Internal, InvalidTransition, ItemUnavailable, NotFound, OtpInvalid, OtpLocked, OutOfRange, PayloadTooLarge, PaymentNotAvailable, PhoneNotVerified, QtyLimit, RateLimited, ShopClosed, ShopNotReady, SlotClosed, SlotFull, StaleOrder, TooManyOpenOrders, TotpInvalid, TotpRequired, Unauthenticated, UploadRejected, ValidationError}
 }
 
 // Valid reports whether c is a contract code.
 func (c Code) Valid() bool {
 	switch c {
-	case BelowMinOrder, BotCheckFailed, CartEmpty, CartUnavailable, CartWrongShop, Conflict, ConnectorBusy, ConnectorTestFailed, CouponAlreadyApplied, CouponExpired, CouponInvalid, CouponLimit, CouponMinOrder, DeliveryCodeInvalid, DeliveryCodeLocked, Forbidden, IdempotencyMismatch, Internal, InvalidTransition, ItemUnavailable, NotFound, OtpInvalid, OtpLocked, OutOfRange, PayloadTooLarge, PaymentNotAvailable, PhoneNotVerified, QtyLimit, RateLimited, ShopClosed, ShopNotReady, SlotClosed, SlotFull, StaleOrder, TooManyOpenOrders, TotpInvalid, TotpRequired, Unauthenticated, UploadRejected, ValidationError:
+	case AccountNotDeletable, BelowMinOrder, BotCheckFailed, CartEmpty, CartUnavailable, CartWrongShop, Conflict, ConnectorBusy, ConnectorTestFailed, CouponAlreadyApplied, CouponExpired, CouponInvalid, CouponLimit, CouponMinOrder, DeliveryCodeInvalid, DeliveryCodeLocked, Forbidden, IdempotencyMismatch, Internal, InvalidTransition, ItemUnavailable, NotFound, OtpInvalid, OtpLocked, OutOfRange, PayloadTooLarge, PaymentNotAvailable, PhoneNotVerified, QtyLimit, RateLimited, ShopClosed, ShopNotReady, SlotClosed, SlotFull, StaleOrder, TooManyOpenOrders, TotpInvalid, TotpRequired, Unauthenticated, UploadRejected, ValidationError:
 		return true
 	}
 	return false
@@ -65,6 +66,8 @@ func (c Code) Valid() bool {
 // HTTPStatus is the response status for the code; unknown codes map to 500.
 func (c Code) HTTPStatus() int {
 	switch c {
+	case AccountNotDeletable:
+		return 409
 	case BelowMinOrder:
 		return 409
 	case BotCheckFailed:
@@ -152,6 +155,8 @@ func (c Code) HTTPStatus() int {
 // Message is the text shown to the user; unknown codes get the INTERNAL text.
 func (c Code) Message() string {
 	switch c {
+	case AccountNotDeletable:
+		return "Finish your open orders and refunds before deleting your account."
 	case BelowMinOrder:
 		return "Add a few more items to reach the minimum order."
 	case BotCheckFailed:

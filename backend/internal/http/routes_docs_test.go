@@ -61,9 +61,7 @@ func codeRoutes(t *testing.T) map[string]bool {
 }
 
 // notBuiltYet are routes the docs describe that come with a later prompt.
-var notBuiltYet = map[string]string{
-	"DELETE /me": "FR-AUTH-09 / DATA-07 (account deletion): in no prompt yet and its rules for open orders and shop members are not in the docs; see the P27 pull request",
-}
+var notBuiltYet = map[string]string{}
 
 // docs/15: every route in docs/06 is in routes.go (TestEveryRouteHasValidGuard
 // checks the guard), and every route in routes.go is in docs/06.

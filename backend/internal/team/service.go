@@ -295,3 +295,13 @@ func (s *Service) ShopDrivers(ctx context.Context, tx *db.Tx, shopID uuid.UUID) 
 	}
 	return out, nil
 }
+
+// OpenWork tells the account module whether the person still works for a shop
+// or the platform. A team member must be removed first (FR-AUTH-09).
+func (s *Service) OpenWork(ctx context.Context, tx *db.Tx, userID uuid.UUID) (map[string]string, error) {
+	ms, err := membershipsOf(ctx, tx, userID)
+	if err != nil || len(ms) == 0 {
+		return nil, err
+	}
+	return map[string]string{"team": "member"}, nil
+}
