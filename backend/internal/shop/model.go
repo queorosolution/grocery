@@ -99,3 +99,11 @@ type UpdateInput struct {
 	ThemeColor  *string          `json:"themeColor"`
 	Status      *enum.ShopStatus `json:"status"`
 }
+
+// Location is the minimum other modules need to measure a distance to a shop.
+type Location struct {
+	ID       uuid.UUID
+	Slug     string
+	Name     string
+	Lat, Lng float64
+}

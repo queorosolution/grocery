@@ -31,3 +31,26 @@ func TestValid(t *testing.T) {
 		t.Fatal("Valid gives the wrong answer")
 	}
 }
+
+func TestInSriLanka(t *testing.T) {
+	cases := map[string]struct {
+		p    Point
+		want bool
+	}{
+		"Colombo":         {Point{6.9271, 79.8612}, true},
+		"Jaffna":          {Point{9.6615, 80.0255}, true},
+		"south-west edge": {Point{5.8, 79.4}, true},
+		"north-east edge": {Point{10.0, 82.0}, true},
+		"just south":      {Point{5.79, 80}, false},
+		"just north":      {Point{10.01, 80}, false},
+		"just west":       {Point{7, 79.39}, false},
+		"just east":       {Point{7, 82.01}, false},
+		"Chennai":         {Point{13.0827, 80.2707}, false},
+		"null island":     {Point{0, 0}, false},
+	}
+	for name, c := range cases {
+		if got := c.p.InSriLanka(); got != c.want {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+		}
+	}
+}

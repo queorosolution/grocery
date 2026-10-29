@@ -137,3 +137,11 @@ func TestHTTPSURL(t *testing.T) {
 		}
 	}
 }
+
+func TestIsMobile(t *testing.T) {
+	for n, want := range map[string]bool{"+94771234567": true, "+94701234567": true, "+94112345678": false, "+94812345678": false} {
+		if got := IsMobile(n); got != want {
+			t.Errorf("IsMobile(%s) = %v, want %v", n, got, want)
+		}
+	}
+}

@@ -14,13 +14,13 @@ import (
 
 type fixture struct {
 	a *apptest.App
-	apptest.AdminAPI
+	apptest.Client
 }
 
 func newFixture(t *testing.T) fixture {
 	t.Helper()
 	a := apptest.New(t)
-	return fixture{a: a, AdminAPI: a.AsAdmin()}
+	return fixture{a: a, Client: a.AsAdmin()}
 }
 
 // activeShop seeds an ACTIVE shop; a plain SeedShop is a DRAFT.

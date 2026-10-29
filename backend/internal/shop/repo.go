@@ -230,3 +230,20 @@ func activeIDBySlug(ctx context.Context, tx *db.Tx, slug string) (uuid.UUID, boo
 	err := tx.QueryRow(ctx, `SELECT id FROM shops WHERE slug = $1 AND status = 'ACTIVE'`, slug).Scan(&id)
 	return id, err == nil, db.IgnoreNoRows(err)
 }
+
+func activeLocations(ctx context.Context, tx *db.Tx) ([]Location, error) {
+	rows, err := tx.Query(ctx, `SELECT id, slug, name, lat, lng FROM shops WHERE status = 'ACTIVE' ORDER BY slug`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Location{}
+	for rows.Next() {
+		var l Location
+		if err := rows.Scan(&l.ID, &l.Slug, &l.Name, &l.Lat, &l.Lng); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}

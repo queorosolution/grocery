@@ -16,13 +16,13 @@ import (
 // fixture is the real API with an admin who passed TOTP.
 type fixture struct {
 	a *apptest.App
-	apptest.AdminAPI
+	apptest.Client
 }
 
 func newFixture(t *testing.T) fixture {
 	t.Helper()
 	a := apptest.New(t)
-	return fixture{a: a, AdminAPI: a.AsAdmin()}
+	return fixture{a: a, Client: a.AsAdmin()}
 }
 
 const newShop = `{"slug":"krishna-super","name":"Krishna Super","phone":"0771234567","addressText":"12 Main Street","lat":6.9271,"lng":79.8612}`

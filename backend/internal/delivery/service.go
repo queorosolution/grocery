@@ -10,11 +10,13 @@ import (
 	"gp/internal/shared/db"
 	"gp/internal/shared/money"
 	"gp/internal/shared/validate"
+	"gp/internal/shop"
 )
 
 // Shops is what delivery needs from the shop module. Delivery does not read
 // the shops table itself.
 type Shops interface {
+	ActiveLocations(ctx context.Context, tx *db.Tx) ([]shop.Location, error)
 	Exists(ctx context.Context, tx *db.Tx, id uuid.UUID) (bool, error)
 	IDBySlug(ctx context.Context, tx *db.Tx, slug string) (uuid.UUID, bool, error)
 }

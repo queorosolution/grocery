@@ -145,3 +145,7 @@ func NormalizePhone(s string) (string, bool) {
 	}
 	return "+94" + d, true
 }
+
+// IsMobile reports whether a normalised +94 number is a mobile number (07x).
+// Codes by SMS only make sense for mobiles, and a landline would only cost money.
+func IsMobile(e164 string) bool { return strings.HasPrefix(e164, "+947") }

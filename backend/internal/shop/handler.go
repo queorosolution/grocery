@@ -5,10 +5,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"gp/internal/shared/adminapi"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/db"
 	"gp/internal/shared/httpx"
+	"gp/internal/shared/routex"
 )
 
 type Handler struct{ svc *Service }
@@ -36,7 +36,7 @@ func (h *Handler) PublicList(w http.ResponseWriter, r *http.Request) {
 
 // List handles GET /admin/shops.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	adminapi.Handle[struct{}](w, r, http.StatusOK, false, nil, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
+	routex.Admin[struct{}](w, r, http.StatusOK, false, nil, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
 		shops, err := h.svc.List(r.Context(), sc)
 		return map[string]any{"data": shops}, err
 	})
@@ -45,14 +45,14 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 // Create handles POST /admin/shops.
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var in CreateInput
-	adminapi.Handle(w, r, http.StatusCreated, false, &in, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusCreated, false, &in, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
 		return h.svc.Create(r.Context(), sc, in)
 	})
 }
 
 // Get handles GET /admin/shops/{id}.
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
-	adminapi.Handle[struct{}](w, r, http.StatusOK, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin[struct{}](w, r, http.StatusOK, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.Get(r.Context(), sc, id)
 	})
 }
@@ -60,7 +60,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 // Update handles PATCH /admin/shops/{id}.
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var in UpdateInput
-	adminapi.Handle(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.Update(r.Context(), sc, id, in)
 	})
 }
@@ -68,7 +68,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 // PutSettings handles PUT /admin/shops/{id}/settings.
 func (h *Handler) PutSettings(w http.ResponseWriter, r *http.Request) {
 	var in Settings
-	adminapi.Handle(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.UpdateSettings(r.Context(), sc, id, in)
 	})
 }
@@ -80,7 +80,7 @@ type hoursBody struct {
 // PutHours handles PUT /admin/shops/{id}/hours.
 func (h *Handler) PutHours(w http.ResponseWriter, r *http.Request) {
 	var in hoursBody
-	adminapi.Handle(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.SetHours(r.Context(), sc, id, in.Days)
 	})
 }
@@ -92,21 +92,21 @@ type acceptingBody struct {
 // Accepting handles POST /admin/shops/{id}/accepting.
 func (h *Handler) Accepting(w http.ResponseWriter, r *http.Request) {
 	var in acceptingBody
-	adminapi.Handle(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.SetAccepting(r.Context(), sc, id, in.On)
 	})
 }
 
 // Readiness handles GET /admin/shops/{id}/readiness.
 func (h *Handler) Readiness(w http.ResponseWriter, r *http.Request) {
-	adminapi.Handle[struct{}](w, r, http.StatusOK, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin[struct{}](w, r, http.StatusOK, true, nil, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.Readiness(r.Context(), sc, id)
 	})
 }
 
 // Accounts handles GET /admin/payment-accounts.
 func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) {
-	adminapi.Handle[struct{}](w, r, http.StatusOK, false, nil, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
+	routex.Admin[struct{}](w, r, http.StatusOK, false, nil, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
 		list, err := h.svc.Accounts(r.Context(), sc)
 		return map[string]any{"data": list}, err
 	})
@@ -115,7 +115,7 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) {
 // CreateAccount handles POST /admin/payment-accounts.
 func (h *Handler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	var in CreateAccountInput
-	adminapi.Handle(w, r, http.StatusCreated, false, &in, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusCreated, false, &in, func(r *http.Request, sc db.Scope, _ uuid.UUID) (any, error) {
 		return h.svc.CreateAccount(r.Context(), sc, in)
 	})
 }
@@ -123,7 +123,7 @@ func (h *Handler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 // UpdateAccount handles PATCH /admin/payment-accounts/{id}.
 func (h *Handler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	var in UpdateAccountInput
-	adminapi.Handle(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
+	routex.Admin(w, r, http.StatusOK, true, &in, func(r *http.Request, sc db.Scope, id uuid.UUID) (any, error) {
 		return h.svc.UpdateAccount(r.Context(), sc, id, in)
 	})
 }

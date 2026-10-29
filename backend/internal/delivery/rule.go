@@ -62,6 +62,12 @@ func (r Rule) Validate() error {
 	return v.Err()
 }
 
+// InRange reports whether an address this far away (straight line, metres) is
+// inside the shop's delivery distance once the road factor is applied.
+func (r Rule) InRange(distanceM int) bool {
+	return int64(distanceM)*int64(r.RoadFactor) <= int64(r.MaxKm)*1000
+}
+
 // Fee is the delivery fee for one address and basket (docs/07 section 7).
 // distanceM is the straight line; the road factor turns it into road km. All
 // steps are integer maths: km and kg are compared in fixed units, never as floats.
@@ -69,13 +75,13 @@ func Fee(r Rule, distanceM, weightG int, items money.Cents) (money.Cents, error)
 	if distanceM < 0 || weightG < 0 || items < 0 {
 		return 0, apperr.Validation(map[string]string{"input": "negative"})
 	}
-	roadM100 := int64(distanceM) * int64(r.RoadFactor) // road metres x 100
-	if roadM100 > int64(r.MaxKm)*1000 {
+	if !r.InRange(distanceM) {
 		return 0, apperr.New(apperr.OutOfRange)
 	}
 	if r.FreeAboveCents != nil && items >= *r.FreeAboveCents {
 		return 0, nil
 	}
+	roadM100 := int64(distanceM) * int64(r.RoadFactor) // road metres x 100
 	extraKm := ceilPositive(roadM100-int64(r.FreeKm)*1000, 100_000)
 	extraKg := ceilPositive(int64(weightG)-int64(r.FreeKg)*10, 1000)
 

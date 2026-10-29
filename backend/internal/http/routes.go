@@ -75,6 +75,17 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPatch, "/admin/slots/{id}", Admin, d.Delivery.UpdateSlot},
 		)
 	}
+	if d.User != nil {
+		table = append(table,
+			Route{nethttp.MethodPatch, "/me", User, d.User.SetName},
+			Route{nethttp.MethodPost, "/me/phone/send", User, d.User.SendPhoneCode},
+			Route{nethttp.MethodPost, "/me/phone/verify", User, d.User.VerifyPhoneCode},
+			Route{nethttp.MethodGet, "/me/addresses", User, d.User.Addresses},
+			Route{nethttp.MethodPost, "/me/addresses", User, d.User.AddAddress},
+			Route{nethttp.MethodPatch, "/me/addresses/{id}", User, d.User.UpdateAddress},
+			Route{nethttp.MethodDelete, "/me/addresses/{id}", User, d.User.DeleteAddress},
+		)
+	}
 	if d.Audit != nil {
 		table = append(table, Route{nethttp.MethodGet, "/admin/audit", Admin, d.Audit.List})
 	}

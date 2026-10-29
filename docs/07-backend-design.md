@@ -30,16 +30,21 @@ flowchart LR
 | Run SQL in a transaction with scope | `database.Tx(ctx, scope, fn)` (`*db.DB` is created once at start-up with `db.Connect` and passed in; `fn` gets a `*db.Tx`) | `internal/shared/db` |
 | Run work after commit | `tx.AfterCommit(fn)` | `internal/shared/db` |
 | Return an error | `apperr.New(apperr.SlotFull)`, `apperr.Validation(fields)` | `internal/shared/apperr` |
+| Admin or "me" route steps (scope, `{id}`, body, JSON out, `204` on nil) | `routex.Admin(w, r, 200, withID, &in, run)`, `routex.User(…)` | `internal/shared/routex` |
+| Database error checks | `db.IgnoreNoRows(err)`, `db.IsUniqueViolation(err)`, `db.IsCheckViolation(err)` | `internal/shared/db` |
 | Decode JSON body | `httpx.Decode(r, &in)` (64 KB, unknown fields rejected) | `internal/shared/httpx` |
 | Write JSON / error | `httpx.JSON(w, 200, v)`, `httpx.Error(w, r, err)` | `internal/shared/httpx` |
 | Validate fields | `validate.New().Str("name", v, 1, 80).Phone(...).Err()` | `internal/shared/validate` |
 | Who is calling | `authn.Actor(ctx)` | `internal/shared/authn` |
 | Check permission + scope | `authz.Require(ctx, authz.OrderReview, shopID)` | `internal/shared/authz` |
 | Money math | `money.Cents`, `money.RoundRupee`, `money.ApplyBP`, `money.MulQty` | `internal/shared/money` |
-| Distance | `geo.HaversineM(a, b)` | `internal/shared/geo` |
+| Distance and Sri Lanka box | `geo.HaversineM(a, b)`, `geo.Point.InSriLanka()` | `internal/shared/geo` |
 | Time / Colombo time | `clock.Now()`, `clock.Colombo(t)` | `internal/shared/clock` |
 | IDs | `ids.Event()`, `ids.OrderCode(shopPrefix)`, `ids.Token()` | `internal/shared/ids` |
 | Encrypt / hash secrets | `crypt.Seal`, `crypt.Open`, `crypt.HMAC`, `crypt.Equal` | `internal/shared/crypt` |
+| Hash an identifier with a secret key (IP, phone, OTP code) | `pepper.Hash(ctx, sec, pepper.OTP, parts...)` | `internal/shared/pepper` |
+| Check a Turnstile token (server side) | `turnstile.Verifier.Verify(ctx, token, ip)` → `BOT_CHECK_FAILED` | `internal/shared/turnstile` |
+| Send a message (SMS, later WhatsApp) | `notify.Sender.Send(ctx, notify.Message{To, Template, Vars})`; the text comes from `notify/templates.go` | `internal/notify` |
 | Rate limit | `ratelimit.Hit(ctx, db, key, limit, window)`. Runs in its **own committed transaction**, so a refused request still counts. Put a keyed hash in `key`, never an e-mail or raw IP. | `internal/shared/ratelimit` |
 | Caller address | `httpx.ClientIP(r)`: for throttling and hashing only, never for access decisions | `internal/shared/httpx` |
 | Emit an event | `events.Add(ctx, tx, events.Event{Type: …, ShopID: …, EntityID: …, Payload: …})` (same tx as the change) | `internal/events` |
@@ -275,7 +280,7 @@ type Channel interface { Send(ctx context.Context, m Message) (ref string, cost 
 ```
 
 - Channels: `sms` (generic HTTP gateway), `whatsapp` (Cloud API templates), `walink` (no send — stores a `LINK` row; console shows a "Send on WhatsApp" button with a `wa.me` link).
-- `dev` env uses `logchannel` (writes masked message to logs).
+- `dev` env uses `logchannel` (writes the template name and a masked number to the log, never the text). Only `APP_ENV=local` also logs the rendered text, so a developer can read an OTP code.
 - Templates live in `internal/notify/templates.go` as a map, max 160 characters for SMS, variables escaped.
 - Daily cap check before send: count today's SMS from `notifications`. Over cap → `SKIPPED` + admin alert once.
 
