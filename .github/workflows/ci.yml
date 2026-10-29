@@ -49,7 +49,7 @@ jobs:
       - name: Contracts match schema and generated code
         run: make check-contracts
       - name: gofmt, vet
-        run: make lint
+        run: make lint-go
       - name: staticcheck
         working-directory: backend
         run: staticcheck ./...
