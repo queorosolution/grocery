@@ -140,7 +140,7 @@ func TestTemplate_EnvHoldsNoSecret(t *testing.T) {
 var fakeKey = "sk" + "_" + "live" + "_" + strings.Repeat("a1b2", 8)
 
 func TestTemplate_EnvScanFindsSecrets(t *testing.T) {
-	tpl := "Globals:\n  Function:\n    Environment:\n      Variables:\n        # a comment\n        SSM_PREFIX: !Sub \"/gp/${Env}\"\n        PAYHERE_SECRET: abc\n        OTHER: "+fakeKey+"\n        DB: postgres://u:pw@host/db\n"
+	tpl := "Globals:\n  Function:\n    Environment:\n      Variables:\n        # a comment\n        SSM_PREFIX: !Sub \"/gp/${Env}\"\n        PAYHERE_SECRET: abc\n        OTHER: " + fakeKey + "\n        DB: postgres://u:pw@host/db\n"
 	env := envVariables(tpl)
 	if len(env) != 4 || env["PAYHERE_SECRET"] != "abc" {
 		t.Fatalf("env = %v", env)
