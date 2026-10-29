@@ -1,0 +1,86 @@
+// Package finance owns the ledger (docs/05 section 4): every money movement is
+// a signed row, written in the transaction of the status change that causes it.
+// Rows are never edited or deleted.
+package finance
+
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+
+	"gp/internal/shared/db"
+	"gp/internal/shared/enum"
+	"gp/internal/shared/money"
+)
+
+// Service posts ledger rows. It keeps no state: it always works inside the
+// caller's transaction.
+type Service struct{}
+
+func NewService() *Service { return &Service{} }
+
+// PaidFacts are the frozen numbers of an order that was just paid.
+type PaidFacts struct {
+	OrderID, ShopID uuid.UUID
+	ItemsCents      money.Cents // what the customer pays for the items (online prices)
+	MarginCents     money.Cents // the platform's part of the items
+	ServiceFeeCents money.Cents
+	DiscountCents   money.Cents
+	// FundedBy is who carries the discount; it is empty when there is none.
+	FundedBy enum.FundedBy
+}
+
+type entry struct {
+	kind   enum.LedgerType
+	party  enum.LedgerParty
+	amount money.Cents
+	note   string
+}
+
+var errFacts = errors.New("finance: the order numbers do not add up")
+
+// paidEntries turns an order's numbers into its T10 rows. Rows of 0 are left
+// out. The shop's part is the items without the platform's margin; a discount
+// is a negative row for whoever funds it.
+func paidEntries(f PaidFacts) ([]entry, error) {
+	if f.MarginCents < 0 || f.MarginCents > f.ItemsCents || f.ServiceFeeCents < 0 || f.DiscountCents < 0 || f.DiscountCents > f.ItemsCents {
+		return nil, errFacts
+	}
+	rows := []entry{
+		{enum.LedgerTypeSale, enum.LedgerPartyShop, f.ItemsCents - f.MarginCents, ""},
+		{enum.LedgerTypePlatformMargin, enum.LedgerPartyPlatform, f.MarginCents, ""},
+		{enum.LedgerTypeServiceFee, enum.LedgerPartyPlatform, f.ServiceFeeCents, ""},
+	}
+	if f.DiscountCents > 0 {
+		var party enum.LedgerParty
+		switch f.FundedBy {
+		case enum.FundedByPlatform:
+			party = enum.LedgerPartyPlatform
+		case enum.FundedByShop:
+			party = enum.LedgerPartyShop
+		default:
+			return nil, errFacts
+		}
+		rows = append(rows, entry{enum.LedgerTypeDiscount, party, -f.DiscountCents, "coupon"})
+	}
+	return rows, nil
+}
+
+// PostPaid writes the rows of T10: sale, platform margin, service fee and discount.
+// The delivery fee comes later, when the order is delivered.
+func (s *Service) PostPaid(ctx context.Context, tx *db.Tx, f PaidFacts) error {
+	rows, err := paidEntries(f)
+	if err != nil {
+		return err
+	}
+	for _, e := range rows {
+		if e.amount == 0 {
+			continue
+		}
+		if err := insert(ctx, tx, f.ShopID, f.OrderID, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}

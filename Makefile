@@ -1,5 +1,5 @@
 # Run from the repo root. Generated files are committed, so CI runs `make gen` and checks for no diff.
-.PHONY: gen check-contracts test test-schema migrate-local lint lint-go dev-api validate build migrate deploy
+.PHONY: gen check-contracts test test-schema migrate-local lint lint-go dev-api fake-payhere validate build migrate deploy
 
 export SAM_CLI_TELEMETRY := 0
 
@@ -32,6 +32,13 @@ lint: lint-go
 # Runs the API on :8080 (needs a .env copied from .env.example; refuses to run unless APP_ENV=local).
 dev-api:
 	cd backend && ENV_FILE=../.env go run ./cmd/devserver
+
+# Plays PayHere against the local API: posts a signed notify for a payment (docs/09 section 2.3).
+# make fake-payhere PAYMENT=<payment id> AMOUNT=1585.00 [STATUS=2] [TIMES=2]
+# needs PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET in the environment; it only talks to localhost.
+fake-payhere:
+	@test -n "$(PAYMENT)" -a -n "$(AMOUNT)" || (echo "usage: make fake-payhere PAYMENT=<payment id> AMOUNT=1585.00 [STATUS=2] [TIMES=1]"; exit 1)
+	cd backend && go run ./cmd/fakepayhere -payment "$(PAYMENT)" -amount "$(AMOUNT)" -status "$(or $(STATUS),2)" -times "$(or $(TIMES),1)" $(if $(CARD),-card,)
 
 # --- SAM (needs the AWS SAM CLI) ---
 

@@ -103,7 +103,7 @@ type Scope struct {
 | `billing` | — (pure) | `Build(BillInput) (Bill, error)` |
 | `coupon` | coupons, coupon_redemptions | Admin `Create`, `List`, `Update`; for an order `Apply`, `Release(order)`, `Confirm(order)` (the order module's `ApplyCoupon` / `RemoveCoupon` call them) |
 | `order` | orders, order_items, order_events, support_tickets | `Quote`, `Submit`, `Review`, `Transition`, `Detail`, `AllowedActions` |
-| `payment` | payments, payment_accounts (read) | `Start`, `HandlePayHereNotify`, `MarkPaidManual` |
+| `payment` | payments, payment_accounts (read) | `Start`, `MarkPaid`, `Verify`, `HandleNotify` |
 | `refund` | refunds | `Request`, `Decide`, `MarkPaidOut` |
 | `finance` | ledger_entries, payouts | `PostPaid`, `PostDelivered`, `PostRefund`, `CreatePayout`, `MarkPayoutPaid`, `Balance` |
 | `notify` | notifications | `Send(ctx, msg)` → provider by channel |
@@ -249,6 +249,18 @@ Inside one `db.Tx`:
 - **Frozen bill:** the fees and prices of an approved order are never worked out again. `billing.WithCoupon` takes the stored totals and moves only the discount and the total, so a change of the fee rule after approval does not change what the customer pays. Remove is the same call with no coupon.
 - **Release:** T11 and T12 (`releaseUnpaid`) give back the slot place and the unconfirmed redemption in one statement (`DELETE … RETURNING` then `used_count - 1`). `Confirm` (called by T10 in P22) sets `confirmed_at`; a confirmed use is never released, also after a refund (T19 only releases the slot).
 - Money amounts of a coupon are `int64` cents; a `PERCENT` value is basis points.
+
+**Built in P22 (`internal/payment`, `internal/finance`, `internal/refund`):**
+- `payment.Service` has `Start` (customer), `MarkPaid` (admin, manual), `Verify` and `HandleNotify` (PayHere). It never changes an order's status: it calls `order.Service.MarkPaid`, which is `transition` to `PAID` (T10) in the payment's own transaction. The order exposes only what payment needs: `Payable` (the customer's order, version and status checked, row locked), `PayState` (system read of status, version, total) and `MarkPaid`.
+- **Providers:** `payment.Provider` (`Checkout`) and `payment.Notifier` (`ParseNotify`) are in `payment`; `payment/payhere` and `payment/manual` implement them and `http/wire.go` builds the `Registry`. `payhere.CheckoutHash` and `payhere.NotifySignature` are the only places that know the MD5 scheme; `cmd/fakepayhere` uses the same functions.
+- **Accounts:** `shop.Service.PayAccountOf(shopID)` (the ACTIVE account the settings name, of the provider they name; a MANUAL one needs the feature switch) and `PayAccountByID` give the payment module an account with the secret's *name* (never the secret). `payment_accounts` is for the system scope, so `Start` reads the shop in the customer's scope and the account in a second, system-scope read.
+- **Start:** idempotency replay → rate limit → read order (shop, version, status) → read account → one customer-scope transaction: claim the key, lock the order again, insert the `INITIATED` payment, build the checkout, save the answer.
+- **Notify:** `check` (fields → payment → account → `ParseNotify`: constant-time signature, then merchant, currency, amount) then, in one system-scope transaction, lock the payment and act on the status code. `provider_ref` (PayHere's `payment_id`) is written once; a second payment with the same reference is a unique violation and a no-op. A `SUCCESS` payment with the same reference is a replay.
+- **T10 hook (`order.markPaid`):** reads the frozen numbers of the order, calls `finance.PostPaid` and `coupon.Confirm`. `finance.PostPaid` writes `SALE` (SHOP, items − platform margin), `PLATFORM_MARGIN`, `SERVICE_FEE` (PLATFORM) and `DISCOUNT` (negative, for the funder), leaving out rows of 0. `DELIVERY_FEE` comes with delivery (T16). The rows add up to `total_cents − delivery_fee_cents`.
+- **Refunds:** `refund.Service.Open` (system-made `REQUESTED` refund plus the `refund.requested` event) is all that exists of the refund module so far.
+- **Manual mode:** `MarkPaid` runs the move first (it checks version, status and the actor), then closes the manual attempts and writes the audit row, all in one transaction.
+- **Shared:** `money.Decimal` / `money.ParseDecimal` (the gateway's `1585.00`, strict), `httpx.PeekBody` (read a body in a route guard and leave it for the handler; the connector trigger uses it too).
+- **Fake PayHere:** `make fake-payhere PAYMENT=<payment id> AMOUNT=1585.00 [STATUS=2] [TIMES=2] [CARD=1]` posts a signed notify to `localhost:8080` and refuses any other host.
 
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 

@@ -15,6 +15,7 @@ import (
 	"gp/internal/delivery"
 	"gp/internal/events"
 	"gp/internal/events/eventsaws"
+	"gp/internal/finance"
 	"gp/internal/order"
 	"gp/internal/shared/config"
 	"gp/internal/shared/db"
@@ -54,7 +55,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (*Job, fun
 		events.SetPublisher(events.NewPublisher(database, queue, sched))
 	}
 	shopSvc := shop.NewService(database, sec, cfg.FeatureManualPay)
-	orders := order.NewService(database, shopSvc, delivery.NewService(database, shopSvc), nil, nil, nil, coupon.NewService(database))
+	orders := order.NewService(database, shopSvc, delivery.NewService(database, shopSvc), nil, nil, nil, coupon.NewService(database), finance.NewService())
 	return New(orders), database.Close, nil
 }
 

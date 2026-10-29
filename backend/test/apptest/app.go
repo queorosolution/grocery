@@ -27,12 +27,18 @@ import (
 	"gp/internal/coupon"
 	"gp/internal/delivery"
 	"gp/internal/events"
+	"gp/internal/finance"
 	apihttp "gp/internal/http"
 	"gp/internal/notify"
 	"gp/internal/order"
+	"gp/internal/payment"
+	"gp/internal/payment/manual"
+	"gp/internal/payment/payhere"
 	"gp/internal/pricing"
+	"gp/internal/refund"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/config"
+	"gp/internal/shared/enum"
 	"gp/internal/shop"
 	"gp/internal/team"
 	"gp/internal/upload"
@@ -89,6 +95,7 @@ type App struct {
 	Orders *order.Service
 	// Coupons is the coupon service the API uses, for tests that reserve or confirm a use directly.
 	Coupons   *coupon.Service
+	Payments  *payment.Service
 	Schedules *fakes.Schedules
 	Invoker   *fakes.Invoker
 	ips       int
@@ -100,7 +107,7 @@ func New(t *testing.T) *App {
 	oidc := fakes.NewOIDC(t)
 	cart := fakes.NewCart(t)
 	cfg := &config.Config{
-		Env: config.EnvDev, APIBaseURL: "https://api.example.test", AllowedOrigins: []string{WebOrigin},
+		Env: config.EnvDev, APIBaseURL: "https://api.example.test", WebOrigin: WebOrigin, AllowedOrigins: []string{WebOrigin},
 		GoogleClientID: ClientID, SuperAdminEmails: []string{AdminEmail}, PlatformName: "TestShop",
 		ImgBaseURL: ImgBase, R2AccountID: "test-account", R2Bucket: "test-bucket", CartAPIBase: cart.BaseURL(),
 	}
@@ -131,7 +138,12 @@ func New(t *testing.T) *App {
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
 	couponSvc := coupon.NewService(env.DB)
-	orderSvc := order.NewService(env.DB, shopSvc, deliverySvc, userSvc, catalogSvc, carts, couponSvc)
+	orderSvc := order.NewService(env.DB, shopSvc, deliverySvc, userSvc, catalogSvc, carts, couponSvc, finance.NewService())
+	paymentSvc := payment.NewService(env.DB, orderSvc, shopSvc, refund.NewService(), payment.Registry{
+		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+apihttp.Base+payment.NotifyPattern),
+		enum.PaymentProviderManual:  manual.New(),
+	})
+	paymentHandler := payment.NewHandler(paymentSvc)
 	deps := apihttp.Deps{
 		Config: cfg, Auth: auth.NewHandler(svc, cfg), Team: team.NewHandler(teamSvc), Memberships: teamSvc,
 		Shop:      shop.NewHandler(shopSvc),
@@ -142,12 +154,16 @@ func New(t *testing.T) *App {
 		Upload:    upload.NewHandler(uploadSvc, teamSvc),
 		Order:     order.NewHandler(orderSvc),
 		Coupon:    coupon.NewHandler(couponSvc),
+		Payment:   paymentHandler,
 		Connector: connectorHandler,
 		Audit:     audit.NewHandler(env.DB),
-		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{"POST " + apihttp.Base + apihttp.TriggerPattern: connectorHandler.VerifyTrigger}),
+		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{
+			"POST " + apihttp.Base + apihttp.TriggerPattern: connectorHandler.VerifyTrigger,
+			"POST " + apihttp.Base + payment.NotifyPattern:  paymentHandler.VerifyNotify,
+		}),
 	}
 	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg,
-		Connector: connectorSvc, Orders: orderSvc, Coupons: couponSvc, Schedules: schedules, Invoker: invoker}
+		Connector: connectorSvc, Orders: orderSvc, Coupons: couponSvc, Payments: paymentSvc, Schedules: schedules, Invoker: invoker}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.
@@ -174,6 +190,17 @@ func (a *App) CallWith(ip, method, path, body string, headers map[string]string,
 	for _, c := range cookies {
 		r.AddCookie(c)
 	}
+	w := httptest.NewRecorder()
+	a.Handler.ServeHTTP(w, r)
+	return w
+}
+
+// PostForm sends a form the way a payment provider does: no browser headers, no
+// cookies. The path starts with /v1.
+func (a *App) PostForm(path string, form url.Values) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r.Header.Set("CF-Connecting-IP", "203.0.113.50")
 	w := httptest.NewRecorder()
 	a.Handler.ServeHTTP(w, r)
 	return w

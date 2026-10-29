@@ -144,7 +144,7 @@ erDiagram
 | `addresses` | Customer addresses | user | Max 5. One default. |
 | `shops` | Shop profile | admin | Starts `DRAFT`, not accepting. |
 | `shop_settings` | All per-shop options | admin | One row per shop. |
-| `payment_accounts` | PayHere / manual accounts | admin | `secret_ref` = SSM name. Platform account has `shop_id NULL`. |
+| `payment_accounts` | PayHere / manual accounts | admin | `secret_ref` = SSM name. Platform account has `shop_id NULL`. `public_info` holds `{ "bank": { bankName, accountName, accountNumber, branch } }` for `MANUAL` accounts. |
 | `shop_hours` | Weekly hours (Colombo time) | admin | No row = closed that day. |
 | `delivery_fee_rules` | Fee rule | admin | `shop_id NULL` = platform default. |
 | `slots` | Delivery windows | admin | `booked` changes only through the booking query. |
@@ -191,6 +191,8 @@ Written in the same transaction as the status change.
 **On refund `PAID_OUT`:** `REFUND` rows that reverse the matching parts (shop part and platform part, in proportion to what each received).
 
 **On payout `PAID`:** `PAYOUT` row, party `SHOP`, − amount.
+
+Rows of 0 are not written. Rows are posted by `finance` in the transaction of the move that causes them; nothing else writes to `ledger_entries`.
 
 **Check (must always hold for a delivered order):**
 `SALE + PLATFORM_MARGIN + SERVICE_FEE + DELIVERY_FEE + DISCOUNT rows = total_cents`

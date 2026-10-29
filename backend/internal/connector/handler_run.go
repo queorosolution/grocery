@@ -2,7 +2,6 @@ package connector
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -91,11 +90,10 @@ func (h *Handler) VerifyTrigger(r *http.Request) error {
 	if err != nil {
 		return apperr.New(apperr.Unauthenticated)
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(nil, r.Body, httpx.MaxWebhookBody))
+	body, err := httpx.PeekBody(r, httpx.MaxWebhookBody)
 	if err != nil {
-		return apperr.New(apperr.PayloadTooLarge)
+		return err
 	}
-	r.Body = io.NopCloser(bytes.NewReader(body))
 	return h.svc.Authenticate(r.Context(), id, r.Header.Get("X-GP-Timestamp"), r.Header.Get("X-GP-Signature"), body)
 }
 
@@ -111,8 +109,7 @@ func (h *Handler) Trigger(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		// The body is optional; Decode refuses an empty one.
 		var body []byte
-		if body, err = io.ReadAll(http.MaxBytesReader(nil, r.Body, httpx.MaxWebhookBody)); err == nil && len(bytes.TrimSpace(body)) > 0 {
-			r.Body = io.NopCloser(bytes.NewReader(body))
+		if body, err = httpx.PeekBody(r, httpx.MaxWebhookBody); err == nil && len(bytes.TrimSpace(body)) > 0 {
 			err = httpx.Decode(r, &in)
 		}
 	}

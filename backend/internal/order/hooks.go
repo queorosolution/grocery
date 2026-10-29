@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gp/internal/events"
+	"gp/internal/finance"
 	"gp/internal/shared/clock"
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
@@ -23,6 +24,8 @@ var hooks = map[string]hook{
 	// The bill is final: freeze it and start the payment timer.
 	"T02": approve, "T07": approve,
 	"T03": reviseBill,
+	// The money arrived: the coupon use is final and the ledger gets its rows.
+	"T10": markPaid,
 	// Release the slot place. An order that waited for payment also gives back its coupon.
 	"T04": releaseSlot, "T05": releaseSlot, "T06": releaseSlot, "T08": releaseSlot, "T09": releaseSlot,
 	"T11": releaseUnpaid, "T12": releaseUnpaid, "T19": releaseSlot,
@@ -52,6 +55,24 @@ func releaseUnpaid(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, in T
 	}
 	_, err := s.coupons.Release(ctx, tx, o.ID)
 	return err
+}
+
+// markPaid is T10. The ledger rows come from the frozen numbers of the order, so
+// they add up to what the customer paid (docs/05 section 4).
+func markPaid(ctx context.Context, s *Service, tx *db.Tx, o *orderRow, _ TransitionInput) error {
+	var f finance.PaidFacts
+	err := tx.QueryRow(ctx, `
+		SELECT items_cents, platform_margin_cents, service_fee_cents, discount_cents, COALESCE(discount_funded_by, '')
+		FROM orders WHERE id = $1`, o.ID).
+		Scan(&f.ItemsCents, &f.MarginCents, &f.ServiceFeeCents, &f.DiscountCents, &f.FundedBy)
+	if err != nil {
+		return err
+	}
+	f.OrderID, f.ShopID = o.ID, o.ShopID
+	if err := s.finance.PostPaid(ctx, tx, f); err != nil {
+		return err
+	}
+	return s.coupons.Confirm(ctx, tx, o.ID)
 }
 
 // approve is T02 and T07: the totals stop changing and the customer has the

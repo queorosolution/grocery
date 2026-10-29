@@ -54,7 +54,7 @@ func TestTransition_Table(t *testing.T) {
 		"SHOP_DRIVER":     {UserID: driver, Role: enum.RoleShopDriver},
 		"PLATFORM_DRIVER": {UserID: driver, Role: enum.RolePlatformDriver},
 	}
-	built := map[string]bool{"T02": true, "T04": true, "T05": true, "T06": true, "T07": true, "T08": true, "T09": true, "T11": true, "T12": true, "T19": true}
+	built := map[string]bool{"T02": true, "T04": true, "T05": true, "T06": true, "T07": true, "T08": true, "T09": true, "T10": true, "T11": true, "T12": true, "T19": true}
 	ran := 0
 	for _, from := range enum.OrderStatusValues() {
 		for _, to := range enum.OrderStatusValues() {
