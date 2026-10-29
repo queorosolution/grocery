@@ -23,3 +23,10 @@ export const formatDateTime = (iso: string) => full.format(parse(iso));
 export function formatSlot(startIso: string, endIso: string): string {
   return `${formatDay(startIso)} · ${formatTime(startIso)} – ${formatTime(endIso)}`;
 }
+
+const colomboDate = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** A Colombo calendar day as YYYY-MM-DD: `colomboDay(0)` today, `colomboDay(-6)` six days ago. */
+export function colomboDay(offsetDays: number, now: Date = new Date()): string {
+  return colomboDate.format(new Date(now.getTime() + offsetDays * 86_400_000));
+}

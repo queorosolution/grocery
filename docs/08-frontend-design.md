@@ -28,7 +28,6 @@ web/
 ├── public/
 │   ├── _headers             Security headers (CSP filled in after build, see §11.4)
 │   ├── _redirects           GENERATED rewrites for id routes (see §11.2)
-│   └── sounds/new-bill.mp3
 ├── scripts/
 │   ├── shop-slugs.mjs       Fetches active shop slugs for the build (§11.1)
 │   ├── gen-redirects.mjs    Writes public/_redirects from the route folders (§11.2)
@@ -138,10 +137,10 @@ Route folders: `/s/:slug` = `app/(customer)/s/[slug]/page.tsx`, `/order/:id` = `
 | Route | Who | Screen |
 |---|---|---|
 | `/console` | any member | Picks the right home by role. All console routes are client-only (§11.2). |
-| `/console/shop/:shopId/orders` | owner, staff | Queue with tabs: New · Waiting · To pick · Packed · Out · Done. New bills ring a sound. |
+| `/console/shop/:shopId/orders` | owner, staff | Queue with tabs: New · Waiting · To pick · Packed · Out · Done. Asked again every 20 s while the tab is visible. A new bill rings a two-note chime made with the Web Audio API (no sound file); browsers need a tap first, so the queue has a sound switch. |
 | `/console/shop/:shopId/order/:orderId` | owner, staff | Review panel / pick list / assign driver — buttons from `allowedActions` |
-| `/console/shop/:shopId/products` | owner, staff | Table; edit dialog for manual products |
-| `/console/shop/:shopId/team` | owner | Members, invites |
+| `/console/shop/:shopId/products` | owner, staff | Table; the edit dialog shows only to owners and to staff with `canEditProducts`. Prices are typed in rupees and sent as exact cents. A connector-managed product only takes the order limit. |
+| `/console/shop/:shopId/team` | owner | Members, invites. A new invite shows its link `https://<domain>/?invite=<token>` once (there is no e-mail sender). |
 | `/console/shop/:shopId/dashboard` | owner, staff | Stat tiles + bar chart |
 | `/console/shop/:shopId/payouts` | owner | Balance, history |
 | `/console/driver` | drivers | Today's list → big "Enter code" / "Couldn't deliver" |

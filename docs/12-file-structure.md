@@ -65,7 +65,6 @@ grocery-platform/
 │   ├── public/
 │   │   ├── _headers              Base security headers (CSP hashes added after build)
 │   │   ├── _redirects            GENERATED id-route rewrites (08 §11.2)
-│   │   └── sounds/new-bill.mp3
 │   ├── scripts/                  shop-slugs.mjs, gen-redirects.mjs, csp-hashes.mjs
 │   ├── src/                      See 08 §2 (app/, components/ui/, features/, lib/, i18n/)
 │   └── e2e/                      Playwright smoke tests

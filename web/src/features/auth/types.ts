@@ -9,6 +9,8 @@ export interface RoleInfo {
   shopId: string | null;
   shopSlug: string | null;
   shopName: string | null;
+  /** A hint for the console; the API checks it again on every product edit. */
+  canEditProducts?: boolean;
 }
 
 export interface Me {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatLKR, saveCents } from "./money";
+import { centsToRupeesText, formatLKR, parseRupees, saveCents } from "./money";
 
 describe("formatLKR", () => {
   it.each([
@@ -33,5 +33,21 @@ describe("saveCents", () => {
     expect(saveCents(160000, 150000)).toBe(0);
     expect(saveCents(100, null)).toBe(0);
     expect(saveCents(100)).toBe(0);
+  });
+});
+
+describe("parseRupees", () => {
+  it("reads rupees as exact cents", () => {
+    expect(parseRupees("1435")).toBe(143500);
+    expect(parseRupees("1,435.5")).toBe(143550);
+    expect(parseRupees("Rs 0.07")).toBe(7);
+    expect(parseRupees("19.99")).toBe(1999); // 19.99 * 100 in floats is 1998.9999999999998
+  });
+  it("refuses what is not money", () => {
+    for (const bad of ["", "abc", "-5", "1.234", "1e5", "1..2", "12345678901"]) expect(parseRupees(bad)).toBeNull();
+  });
+  it("writes cents back as input text", () => {
+    expect(centsToRupeesText(143500)).toBe("1435.00");
+    expect(centsToRupeesText(7)).toBe("0.07");
   });
 });

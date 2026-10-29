@@ -23,3 +23,19 @@ export function saveCents(priceCents: number, mrpCents?: number | null): number 
   assertCents(mrpCents);
   return Math.max(0, mrpCents - priceCents);
 }
+
+/**
+ * Rupees typed by a person ("1435", "1,435.50") to whole cents, with no floating point: the text is
+ * split at the dot. Null when it is not money (letters, a minus, three decimals, empty).
+ */
+export function parseRupees(text: string): number | null {
+  const m = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(text.replace(/[,\s]/g, "").replace(/^Rs\.?/i, ""));
+  if (!m) return null;
+  return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
+}
+
+/** 143500 -> "1435.00", the text for an input box. */
+export function centsToRupeesText(cents: number): string {
+  assertCents(cents);
+  return `${Math.trunc(cents / 100)}.${String(Math.abs(cents) % 100).padStart(2, "0")}`;
+}
