@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"regexp"
 	"strconv"
 	"time"
@@ -72,10 +73,14 @@ func (s *Service) SendPhoneCode(ctx context.Context, scope db.Scope, in PhoneCod
 	}
 	// After the commit: a refused SMS must not leave the code half-saved, and a
 	// saved code without an SMS is harmless (nobody knows it).
-	return s.notify.Send(ctx, notify.Message{
+	err = s.notify.Send(ctx, notify.Message{
 		To: phone, Template: notify.OTP, UserID: &scope.UserID,
-		Vars: map[string]string{"platform": s.platform, "code": code},
+		Vars: map[string]string{"app": s.platform, "code": code},
 	})
+	if errors.Is(err, notify.ErrCapReached) {
+		return apperr.New(apperr.RateLimited) // the day's SMS budget is used up; asking again tomorrow works
+	}
+	return err
 }
 
 func (s *Service) codeHash(ctx context.Context, scope db.Scope, phone, code string) ([]byte, error) {

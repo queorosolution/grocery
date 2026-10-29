@@ -32,7 +32,7 @@ func TestPhone_SendAndVerify(t *testing.T) {
 		t.Fatalf("send = %d, want 204", code)
 	}
 	sms := f.a.SMS.Sent()
-	if len(sms) != 1 || sms[0].To != e164 || sms[0].Template != "otp" || sms[0].Vars["platform"] != "TestShop" {
+	if len(sms) != 1 || sms[0].To != e164 || sms[0].Template != "otp.phone" || sms[0].Vars["app"] != "TestShop" {
 		t.Fatalf("sms = %+v", sms)
 	}
 	code := f.a.SMS.LastCode(e164)

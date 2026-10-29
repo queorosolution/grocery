@@ -12,7 +12,7 @@
 | `APP_NAME` | `gp` | Prefix for AWS resources and SSM paths |
 | `APP_ENV` | `dev` · `prod` · `local` | `local` allows secrets from env and log-only SMS |
 | `PLATFORM_NAME` | `NearShop` | Used in UI (via bootstrap), SMS, receipts |
-| `PLATFORM_DOMAIN` | `nearshop.lk` | Used to build links and allowed hosts |
+| `PLATFORM_DOMAIN` | `nearshop.lk` | Used to build links and allowed hosts. At most 20 characters (it must fit the 160-character SMS). |
 | `WEB_ORIGIN` | `https://www.nearshop.lk` | Links in SMS, PayHere return / cancel URLs |
 | `ALLOWED_ORIGINS` | `https://www.nearshop.lk,https://dev.nearshop.lk` | Exact CORS / CSRF list |
 | `API_BASE_URL` | `https://api.nearshop.lk` | PayHere `notify_url` |

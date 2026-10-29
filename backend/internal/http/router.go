@@ -12,6 +12,7 @@ import (
 	"gp/internal/coupon"
 	"gp/internal/delivery"
 	"gp/internal/finance"
+	"gp/internal/notify"
 	"gp/internal/order"
 	"gp/internal/payment"
 	"gp/internal/pricing"
@@ -60,6 +61,8 @@ type Deps struct {
 	// the shop's balance and the admin's payouts.
 	Refund  *refund.Handler
 	Payouts *finance.Handler
+	// Notify serves the admin's SMS usage report.
+	Notify *notify.Handler
 	// Connector serves the shop database connector (admin only).
 	Connector    *connector.Handler
 	Audit        *audit.Handler

@@ -58,6 +58,9 @@ type Config struct {
 	SecretsFromEnv bool
 }
 
+// maxDomainLen keeps the order link inside one SMS (notify templates).
+const maxDomainLen = 20
+
 func (c *Config) IsLocal() bool { return c.Env == EnvLocal }
 
 // Load reads the process environment.
@@ -82,6 +85,9 @@ func LoadFrom(environ []string) (*Config, error) {
 	web := urlRule{required: true, allowHTTP: local}
 	c.PlatformName = r.str("PLATFORM_NAME", true)
 	c.PlatformDomain = r.domain("PLATFORM_DOMAIN")
+	if len(c.PlatformDomain) > maxDomainLen {
+		r.fail("PLATFORM_DOMAIN", "must be at most 20 characters, it is part of the links in SMS")
+	}
 	c.WebOrigin = r.url("WEB_ORIGIN", web)
 	c.AllowedOrigins = r.urls("ALLOWED_ORIGINS", web)
 	c.ImgBaseURL = r.url("IMG_BASE_URL", web)

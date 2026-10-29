@@ -17,7 +17,7 @@ import (
 	"gp/internal/events/eventsaws"
 	"gp/internal/finance"
 	"gp/internal/notify"
-	"gp/internal/notify/logchannel"
+	notifysetup "gp/internal/notify/setup"
 	"gp/internal/order"
 	"gp/internal/payment"
 	"gp/internal/payment/manual"
@@ -70,8 +70,12 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Attach(connector.Runtime{Pricer: pricingSvc, Products: catalogSvc, Hours: shopSvc, Schedules: schedules, Invoker: invoker})
 	connectorHandler := connector.NewHandler(connectorSvc)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
-	sms := notify.New(logchannel.New(cfg.IsLocal())) // real SMS comes with P25
-	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)
+	notifySvc, err := notifysetup.Service(cfg, database, sec)
+	if err != nil {
+		database.Close()
+		return Deps{}, nil, fmt.Errorf("wire: %w", err)
+	}
+	userSvc := user.NewService(database, sec, turnstile.New(sec), notifySvc, deliverySvc, cfg.PlatformName)
 	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
 	couponSvc := coupon.NewService(database)
 	ledger := finance.NewService()
@@ -97,6 +101,7 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Order:       order.NewHandler(orderSvc),
 		Coupon:      coupon.NewHandler(couponSvc),
 		Payment:     paymentHandler,
+		Notify:      notify.NewHandler(notifySvc),
 		Refund:      refund.NewHandler(refundSvc),
 		Payouts:     finance.NewHandler(finance.NewPayouts(database)),
 		Connector:   connectorHandler,

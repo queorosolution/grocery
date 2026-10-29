@@ -30,6 +30,8 @@ import (
 	"gp/internal/finance"
 	apihttp "gp/internal/http"
 	"gp/internal/notify"
+	"gp/internal/notify/consumer"
+	"gp/internal/notify/walink"
 	"gp/internal/order"
 	"gp/internal/payment"
 	"gp/internal/payment/manual"
@@ -53,6 +55,9 @@ const (
 	AdminEmail = "boss@example.test"
 	DefaultIP  = "198.51.100.1"
 	ImgBase    = "https://img.example.test"
+	// AdminPhone gets the cap alerts; SMSCap is the day's SMS cap of the test platform.
+	AdminPhone = "+94770000000"
+	SMSCap     = 1000
 )
 
 // Secrets is an in-memory secret store; the preset values are base64 of 32 bytes.
@@ -110,6 +115,7 @@ func New(t *testing.T) *App {
 		Env: config.EnvDev, APIBaseURL: "https://api.example.test", WebOrigin: WebOrigin, AllowedOrigins: []string{WebOrigin},
 		GoogleClientID: ClientID, SuperAdminEmails: []string{AdminEmail}, PlatformName: "TestShop",
 		ImgBaseURL: ImgBase, R2AccountID: "test-account", R2Bucket: "test-bucket", CartAPIBase: cart.BaseURL(),
+		PlatformDomain: "nearshop.test", AdminAlertPhone: AdminPhone, SMSDailyCap: SMSCap,
 	}
 	sec := &Secrets{values: map[string]string{
 		"enc/key":           "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
@@ -137,13 +143,16 @@ func New(t *testing.T) *App {
 	connectorHandler := connector.NewHandler(connectorSvc)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
-	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
+	notifySvc := notify.NewService(notify.Deps{DB: env.DB, SMS: sms, WALink: walink.New(), DailyCap: cfg.SMSDailyCap,
+		AdminPhone: cfg.AdminAlertPhone, App: cfg.PlatformName})
+	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notifySvc, deliverySvc, cfg.PlatformName)
 	couponSvc := coupon.NewService(env.DB)
 	ledger := finance.NewService()
 	refundSvc := refund.NewService(env.DB, ledger)
 	orderSvc := order.NewService(order.Deps{DB: env.DB, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
 		Coupons: couponSvc, Finance: ledger, Drivers: teamSvc, Secrets: sec})
 	orderSvc.SetRefunds(refundSvc)
+	consumer.New(notifySvc, orderSvc, shopSvc, userSvc, consumer.Config{App: cfg.PlatformName, Domain: cfg.PlatformDomain, AdminPhone: cfg.AdminAlertPhone}).Register(reg)
 	refundSvc.SetOrders(orderSvc)
 	paymentSvc := payment.NewService(env.DB, orderSvc, shopSvc, refundSvc, payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+apihttp.Base+payment.NotifyPattern),
@@ -161,6 +170,7 @@ func New(t *testing.T) *App {
 		Order:     order.NewHandler(orderSvc),
 		Coupon:    coupon.NewHandler(couponSvc),
 		Payment:   paymentHandler,
+		Notify:    notify.NewHandler(notifySvc),
 		Refund:    refund.NewHandler(refundSvc),
 		Payouts:   finance.NewHandler(finance.NewPayouts(env.DB)),
 		Connector: connectorHandler,

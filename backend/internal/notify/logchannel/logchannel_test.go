@@ -15,7 +15,7 @@ func send(t *testing.T, showText bool) string {
 	t.Helper()
 	var buf bytes.Buffer
 	ctx := logx.With(context.Background(), logx.New(slog.LevelInfo, &buf))
-	m := notify.Message{To: "+94771234567", Template: notify.OTP, Vars: map[string]string{"platform": "NearShop", "code": "482913"}}
+	m := notify.Message{To: "+94771234567", Template: notify.OTP, Vars: map[string]string{"app": "NearShop", "code": "482913"}}
 	if _, _, err := New(showText).Send(ctx, m); err != nil {
 		t.Fatal(err)
 	}

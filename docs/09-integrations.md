@@ -137,8 +137,15 @@ Phase 1: refunds are done by the admin outside the system (PayHere merchant port
 | `order.out` | customer | `{app}: order {orderCode} is on the way. Give code {code} to the driver.` |
 | `order.delivered` | customer | `{app}: order {orderCode} delivered. Thank you!` |
 | `order.expired` | customer | `{app}: order {orderCode} expired.` |
+| `order.cancelled` | shop phone | `{app}: order {orderCode} was cancelled.` |
+| `order.delivery_failed` | shop phone | `{app}: delivery of order {orderCode} failed. Please check and send it out again.` |
+| `order.refund_cancel` | customer, shop phone | `{app}: order {orderCode} was cancelled. The payment will be refunded.` |
+| `admin.refund` | admin phone | `{app}: refund request for order {orderCode}, Rs {amount}. Please review.` |
+| `admin.connector` | admin phone | `{app}: the connector of {shop} failed 3 times. Check the sync issues.` |
+| `admin.cap80` | admin phone | `{app}: SMS use is at {percent}% of today's cap ({sent} of {cap}).` |
+| `admin.cap100` | admin phone | `{app}: today's SMS cap ({cap}) is reached. New SMS are skipped until tomorrow.` |
 
-Rules: only `https://www.<PLATFORM_DOMAIN>` links; variables have control characters removed and are trimmed; max 160 characters (check in a unit test).
+Rules: only `https://www.<PLATFORM_DOMAIN>` links; variables have control characters and `{}:/@` removed and are cut at a per-slot limit (`{domain}` and `{id}` are never cut: a bad one is an error); max 160 characters (check in a unit test).
 
 ### 3.2 WhatsApp
 
