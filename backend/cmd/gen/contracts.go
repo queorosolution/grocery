@@ -41,7 +41,7 @@ var valuePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.]*$`)
 // loadContract reads enums.json. Unknown keys are rejected so a typo in the
 // contract fails here instead of silently generating nothing.
 func loadContract(path string) (*Contract, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- dev tool: the path is a command-line flag
 	if err != nil {
 		return nil, err
 	}

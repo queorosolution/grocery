@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
@@ -70,7 +71,8 @@ func (r *Ring) Seal(plaintext, aad []byte) []byte {
 	aead := r.keys[r.current]
 	out := make([]byte, headerLen, headerLen+len(plaintext)+aead.Overhead())
 	out[0] = r.current
-	rand.Read(out[1:headerLen]) // never fails since Go 1.24
+	_, _ = rand.Read(out[1:headerLen]) // never fails since Go 1.24
+	// #nosec G407 -- the nonce is random: it was just filled from crypto/rand.
 	return aead.Seal(out, out[1:headerLen], plaintext, aad)
 }
 
@@ -96,7 +98,9 @@ func (r *Ring) Open(sealed, aad []byte) ([]byte, error) {
 func HMAC(key []byte, parts ...[]byte) []byte {
 	mac := hmac.New(sha256.New, key)
 	for _, p := range parts {
-		mac.Write([]byte{byte(len(p) >> 24), byte(len(p) >> 16), byte(len(p) >> 8), byte(len(p))})
+		var n [4]byte
+		binary.BigEndian.PutUint32(n[:], uint32(len(p))) // #nosec G115 -- length of an in-memory slice
+		mac.Write(n[:])
 		mac.Write(p)
 	}
 	return mac.Sum(nil)
@@ -110,7 +114,7 @@ func RandomDigits(n int) string {
 	out := make([]byte, 0, n)
 	buf := make([]byte, n+8)
 	for len(out) < n {
-		rand.Read(buf)
+		_, _ = rand.Read(buf)
 		for _, b := range buf {
 			if b < 250 && len(out) < n { // 250 is a multiple of 10: no modulo bias
 				out = append(out, '0'+b%10)

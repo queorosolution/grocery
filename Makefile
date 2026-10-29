@@ -1,5 +1,7 @@
 # Run from the repo root. Generated files are committed, so CI runs `make gen` and checks for no diff.
-.PHONY: gen check-contracts test test-schema migrate-local lint dev-api
+.PHONY: gen check-contracts test test-schema migrate-local lint dev-api validate build migrate deploy
+
+export SAM_CLI_TELEMETRY := 0
 
 gen:
 	cd backend && go run ./cmd/gen -contracts ../contracts -backend . -web ../web
@@ -27,3 +29,25 @@ lint:
 # Runs the API on :8080 (needs a .env copied from .env.example; refuses to run unless APP_ENV=local).
 dev-api:
 	cd backend && ENV_FILE=../.env go run ./cmd/devserver
+
+# --- SAM (needs the AWS SAM CLI) ---
+
+# Checks backend/template.yaml and lints it.
+validate:
+	cd backend && sam validate --lint
+
+# Builds the four Lambda functions into backend/.aws-sam.
+build:
+	cd backend && sam build
+
+# Applies migrations with the OWNER url from your shell: MIGRATE_DATABASE_URL=... make migrate
+migrate:
+	cd backend && go run ./cmd/migrate up
+
+# Deploys one environment. SAM_PARAMETERS holds the parameter overrides (docs/14 section 5).
+# Every deploy needs the owner to say yes; CI does this on merge to main and on a v* tag.
+deploy:
+	@test -n "$(ENV)" || (echo "usage: make deploy ENV=dev|prod"; exit 1)
+	@test -n "$$SAM_PARAMETERS" || (echo "set SAM_PARAMETERS (see docs/14-deployment.md section 5)"; exit 1)
+	@test -n "$(NO_BUILD)" || $(MAKE) build
+	cd backend && sam deploy --config-env $(ENV) --parameter-overrides "$$SAM_PARAMETERS"

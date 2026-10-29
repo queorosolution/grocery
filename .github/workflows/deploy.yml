@@ -1,0 +1,66 @@
+# main -> dev, tag v* -> prod (the "prod" GitHub environment must require approval).
+# AWS access is GitHub OIDC: there are no long-lived AWS keys anywhere.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || 'dev' }}
+  cancel-in-progress: false
+
+env:
+  SAM_CLI_TELEMETRY: "0"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || 'dev' }}
+    env:
+      APP_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || 'dev' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: aws-actions/setup-sam@f84ec7d548307efafe33230528756de3c5841a17 # v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          role-to-arn: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gp-deploy-${{ github.run_id }}
+
+      # Migrations run first and are forward-only. The owner URL is only used here.
+      - name: Migrate database
+        working-directory: backend
+        env:
+          MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
+        run: go run ./cmd/migrate up
+
+      - name: Build
+        run: make build
+
+      - name: Deploy
+        env:
+          SAM_PARAMETERS: ${{ vars.SAM_PARAMETERS }}
+        run: make deploy ENV="$APP_ENV" NO_BUILD=1
+
+      - name: Smoke test
+        run: |
+          url="$(aws cloudformation describe-stacks --stack-name "gp-${APP_ENV}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${url}/v1/health" | grep -q '"ok":true'
+          curl -fsS "${url}/v1/bootstrap" | grep -q '"platform"'
+          echo "smoke test passed for gp-${APP_ENV}"

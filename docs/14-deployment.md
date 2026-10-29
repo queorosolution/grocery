@@ -69,6 +69,22 @@ on push main  → build → migrate dev → sam deploy dev → smoke test (GET /
 on tag v*     → wait for approval (GitHub environment "prod") → migrate prod → sam deploy prod → smoke test
 ```
 
+### GitHub setup (once per environment `dev` and `prod`)
+
+| Kind | Name | Value |
+|---|---|---|
+| Variable | `AWS_ROLE_ARN` | IAM role that trusts GitHub OIDC for this repo (`dev`: branch `main`; `prod`: tags `v*`) |
+| Variable | `AWS_REGION` | `ap-south-1` (must match `samconfig.toml`) |
+| Variable | `SAM_PARAMETERS` | All template parameters in one line, for example `Env=dev PlatformName=NearShop PlatformDomain=nearshop.lk AllowedOrigins="https://dev.nearshop.lk" …` |
+| Secret | `MIGRATE_DATABASE_URL` | Neon **owner** URL for that environment |
+
+- The `prod` environment must have **required reviewers**: that is the manual approval.
+- `SAM_PARAMETERS` holds only config values (domains, phones, emails). Secrets stay in SSM.
+- A comma list needs inner quotes: `AllowedOrigins="https://a.lk,https://b.lk"`.
+- `make deploy ENV=dev` does the same from your shell with `SAM_PARAMETERS` exported.
+- Lambda reserved concurrency (20 + 5 + 5 + 2) needs an account limit of at least 42. New AWS accounts may start at 10: ask for an increase before the first deploy.
+- The API custom domain is optional in the template. When `ApiDomainName` is set, the `ApiDomainTarget` stack output is the value for the proxied Cloudflare CNAME.
+
 - AWS access through **GitHub OIDC** role (no long-lived AWS keys in GitHub).
 - Owner DB URLs are GitHub environment secrets, used only by the migrate step.
 - Actions pinned to commit SHAs; `permissions: contents: read, id-token: write`.

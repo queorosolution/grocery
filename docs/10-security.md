@@ -148,6 +148,15 @@ Every arrow into "Trusted" is checked: identity (cookie / signature), permission
 | Sync failing | 3 failed runs in a row |
 | Admin sign-in | every admin sign-in sends an SMS to the admin phone |
 
+The template turns these structured log messages (`msg` field) into the alarm metrics. The code must log them exactly:
+
+| Alarm | Log `msg` | Written by |
+|---|---|---|
+| Payment signature failures | `payment.signature_invalid` | `api` |
+| Refresh-token reuse | `auth.refresh_reuse` | `api` |
+| SMS cap | `sms.cap_80pct` (once, when 80% is crossed) | `api`, `worker` |
+| Sync failing | `sync.run_failed` (alarm: 3 in 30 minutes, since a metric cannot count "in a row") | `sync` |
+
 **If something goes wrong:** pause the shop (`accepting_orders = off`), rotate the affected secret in SSM (functions pick it up within 5 min), revoke sessions (`UPDATE sessions SET revoked_at = now()`), check `audit_log`, tell affected users.
 
 ## 5. HTTP security headers
