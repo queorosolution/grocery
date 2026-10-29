@@ -1,0 +1,12 @@
+# Extends the default rules. The only allowed hits are fake keys in test setup code:
+# they are random-looking on purpose and protect nothing.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake keys used by the test harness"
+condition = "OR"
+paths = [
+  '''backend/internal/auth/helpers_test\.go''',
+  '''backend/test/apptest/app\.go''',
+]
