@@ -262,7 +262,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${AppName}-${Env}-timer"
       CodeUri: .
-      Timeout: 10
+      Timeout: 15
       MemorySize: 128
       ReservedConcurrentExecutions: 5
       LoggingConfig:
@@ -274,6 +274,11 @@ Resources:
               Effect: Allow
               Action: [ssm:GetParameter, ssm:GetParameters]
               Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/${Env}/*"
+            # An expiry writes an event (order.expired); it is sent after the commit.
+            - Sid: SendEvents
+              Effect: Allow
+              Action: [sqs:SendMessage]
+              Resource: !GetAtt EventsQueue.Arn
 
   TimerLogGroup:
     Type: AWS::Logs::LogGroup

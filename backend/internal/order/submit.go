@@ -205,7 +205,7 @@ func (s *Service) insert(ctx context.Context, tx *db.Tx, scope db.Scope, in Subm
 		return uuid.Nil, err
 	}
 	o := orderRow{ID: id, Code: code, ShopID: p.shopID, CustomerID: scope.UserID, Status: enum.OrderStatusSubmitted, Version: 1, SlotID: in.SlotID}
-	if err := hooks["T01"](ctx, s, tx, o, TransitionInput{}); err != nil {
+	if err := hooks["T01"](ctx, s, tx, &o, TransitionInput{}); err != nil {
 		return uuid.Nil, err
 	}
 	return id, s.record(ctx, tx, o, nil, enum.OrderStatusSubmitted, actorOf(scope), "")

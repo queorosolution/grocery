@@ -87,6 +87,10 @@ func serve[B any](w http.ResponseWriter, r *http.Request, status int, scopeOf fu
 	case out == nil:
 		w.WriteHeader(http.StatusNoContent)
 	default:
+		if rv, ok := out.(httpx.Revalidated); ok {
+			httpx.JSONWithETag(w, r, status, rv.V)
+			return
+		}
 		httpx.JSON(w, status, out)
 	}
 }

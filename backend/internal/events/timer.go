@@ -20,7 +20,8 @@ const (
 	TimerPayment  TimerKind = "payment"
 )
 
-func (k TimerKind) valid() bool {
+// Valid reports whether k is one of the three deadlines.
+func (k TimerKind) Valid() bool {
 	return k == TimerReview || k == TimerRevision || k == TimerPayment
 }
 
@@ -42,7 +43,7 @@ func (t Timer) Name() string {
 // AddTimer writes a timer.schedule event in the caller's transaction. The
 // publisher creates the schedule after the commit; timers never go to SQS.
 func AddTimer(ctx context.Context, tx *db.Tx, shopID uuid.UUID, t Timer) (string, error) {
-	if t.OrderID == uuid.Nil || !t.Kind.valid() || t.RevisionNo < 0 || t.RunAt.IsZero() {
+	if t.OrderID == uuid.Nil || !t.Kind.Valid() || t.RevisionNo < 0 || t.RunAt.IsZero() {
 		return "", fmt.Errorf("events: bad timer %+v", t)
 	}
 	t.RunAt = t.RunAt.UTC()
