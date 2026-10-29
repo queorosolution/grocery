@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"gp/internal/shop"
 	"gp/test/apptest"
 )
@@ -146,7 +148,7 @@ func TestUpdatePaymentAccount(t *testing.T) {
 	if w := f.Call(http.MethodPatch, "/admin/payment-accounts/"+manual.ID.String(), `{"merchantSecret":"`+secretValue+`"}`); w.Code != http.StatusBadRequest {
 		t.Errorf("secret on a manual account = %d, want 400", w.Code)
 	}
-	if w := f.Call(http.MethodPatch, "/admin/payment-accounts/"+manual.ID.String()[:35]+"0", `{"mode":"LIVE"}`); w.Code != http.StatusNotFound {
+	if w := f.Call(http.MethodPatch, "/admin/payment-accounts/"+uuid.NewString(), `{"mode":"LIVE"}`); w.Code != http.StatusNotFound {
 		t.Errorf("unknown account = %d, want 404", w.Code)
 	}
 }

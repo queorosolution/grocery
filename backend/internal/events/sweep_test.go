@@ -95,3 +95,17 @@ func TestSweep_PrunesOldProcessedEvents(t *testing.T) {
 		t.Error("a row younger than 7 days must stay")
 	}
 }
+
+func TestSweep_PrunesOldIdempotencyKeys(t *testing.T) {
+	f := newFixture(t)
+	f.exec(t, `INSERT INTO users (id, google_sub, email, name) VALUES ('11111111-1111-4111-8111-111111111111', 'sub-k', 'k@example.com', 'K')`)
+	f.exec(t, `INSERT INTO idempotency_keys (user_id, route, key, body_hash, created_at) VALUES
+		('11111111-1111-4111-8111-111111111111', 'POST /bills', 'old-key-0000000001', '\x00', now() - interval '8 days'),
+		('11111111-1111-4111-8111-111111111111', 'POST /bills', 'new-key-0000000001', '\x00', now() - interval '2 days')`)
+	if _, err := f.pub.Sweep(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if f.count(t, `SELECT count(*) FROM idempotency_keys`) != 1 || f.count(t, `SELECT count(*) FROM idempotency_keys WHERE key = 'new-key-0000000001'`) != 1 {
+		t.Error("only the key older than 7 days should be removed")
+	}
+}

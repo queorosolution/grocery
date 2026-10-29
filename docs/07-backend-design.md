@@ -195,6 +195,16 @@ Used by: quote, submit, revise, accept revision, coupon apply / remove. **No oth
 
 Steps: validate lines (available, qty 1..max_per_order, ≤ `max_lines`) → line totals → items total → service fee (`max(0, min_platform_margin − margin)`) → weight → distance → delivery fee → coupon discount (cap by `max_discount`, by items total, and by platform income unless `allow_loss`) → total → checks (min order).
 
+### 8.1 How the quote is built (P18)
+
+- `order.Service.Quote` loads the facts and hands them to `billing.Build`. It writes nothing.
+- Quantities come from the **cart** (read with `cartclient.GetCart` in the shop's own cart tenant). The request only says what to do when a line is not available (`subPref`). A quantity in the request is refused.
+- Prices come from `shop_products` through `catalog.BillProducts`. The price the cart shows only sets `priceChanged`.
+- A cart line that is not one of this shop's products (or has no item id) is listed as `excluded`, with no name.
+- The shop facts come from `shop.OrderFacts`, the fee rule from `delivery.RuleFor`, the windows from `delivery.OpenSlots`, a chosen slot from `delivery.CheckSlot` (same codes as `Book`, no place taken).
+- Reads of the shop (payment readiness reads `payment_accounts`) use the system scope. Nothing of the caller is read there. The address and phone are read in the caller's own scope.
+- A cart that is not in the shop's tenant is `CART_WRONG_SHOP`; a missing cart is the same answer. A cart service that cannot be reached, or a shop with no cart tenant, is `CART_UNAVAILABLE`.
+
 **Quantities:** phase 1 quantities are whole numbers (packs). `unit` + `size_label` describe the pack. Loose weighed items are phase 3.
 
 ## 9. Order service
@@ -211,6 +221,18 @@ Inside one `db.Tx`:
 5. `UPDATE orders SET status, version = version + 1, <timestamps> WHERE id AND version`.
 6. Insert `order_events`, `events.Add(...)`, `audit.Write(...)` for admin overrides.
 7. After commit: publish events, create timers.
+
+**Built in P19:**
+- `Transition(ctx, scope, orderID, to, TransitionInput{Version, Reason})` opens the transaction; `transition(ctx, tx, …)` is the same inside a caller's transaction (timers, payment callback). The caller's scope is checked after row level security: an order outside the caller's scope is `NOT_FOUND`.
+- Order of the checks: scope → version (`STALE_ORDER`) → the generated table for this actor (`INVALID_TRANSITION`) → reason (`VALIDATION_ERROR`) → hook → `UPDATE … WHERE version` → `order_events` + outbox event → audit row when the actor is `SUPER_ADMIN`.
+- `hooks` (in `order/hooks.go`) is a map from transition id to the side effect. **A move with no entry refuses to run**, so a half-built flow can never change an order without its side effects. P19 has T01 (review timer), and the slot release for T04, T05, T06, T08, T09 and T19. Later prompts add the rest.
+- The outbox event is chosen by the status the order ends in (`eventFor`).
+- The system actor (timers, webhooks) has no screen, so `Transition` returns an empty detail for it.
+- T01 is not a call to `Transition` (there is no order yet): `Submit` inserts the order, then runs the same T01 hook and the same `record` step.
+
+**Submit (`POST /bills`):** replay lookup → hourly rate limit → shop facts and cart (outside the transaction) → one transaction in the customer's scope: claim the idempotency key, lock the customer row, price with `billing.Build`, check (phone, open orders, lines, range, minimum), book the slot, insert order and lines, T01 hook and history, save the answer under the key. The cart is deleted after the commit.
+
+**Views (`order/view.go`):** one mapper per viewer (`ViewCustomer`, `ViewConsole`, `ViewDriver`). The driver sees no prices, coupon, payment or timeline; the customer sees no customer block; the console sees the phone masked, in full only while picking. `allowedActions` comes from the transition table plus the viewer (`order/actions.go`).
 
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 

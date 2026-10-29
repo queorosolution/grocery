@@ -69,6 +69,12 @@ func addressByID(ctx context.Context, tx *db.Tx, userID, id uuid.UUID) (Address,
 	return a, err == nil, db.IgnoreNoRows(err)
 }
 
+// addressOf is addressByID without the lock, for callers that only read.
+func addressOf(ctx context.Context, tx *db.Tx, userID, id uuid.UUID) (Address, bool, error) {
+	a, err := scanAddress(tx.QueryRow(ctx, `SELECT `+addressColumns+` FROM addresses WHERE id = $1 AND user_id = $2`, id, userID))
+	return a, err == nil, db.IgnoreNoRows(err)
+}
+
 func saveAddress(ctx context.Context, tx *db.Tx, userID uuid.UUID, a Address) (Address, error) {
 	return scanAddress(tx.QueryRow(ctx, `
 		UPDATE addresses SET label = $3, line1 = $4, landmark = NULLIF($5, ''), lat = $6, lng = $7, is_default = $8

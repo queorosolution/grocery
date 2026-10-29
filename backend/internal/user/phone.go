@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"gp/internal/notify"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/clock"
@@ -117,4 +119,27 @@ func (s *Service) VerifyPhoneCode(ctx context.Context, scope db.Scope, code stri
 		return err
 	}
 	return denied
+}
+
+// Contact is how the shop can reach the customer, taken from the account.
+type Contact struct {
+	Name          string
+	Phone         string // empty until a phone was verified
+	PhoneVerified bool
+}
+
+// ContactOf reads the caller's name and phone inside the caller's transaction.
+// The phone is returned only when it was verified.
+func (s *Service) ContactOf(ctx context.Context, tx *db.Tx, userID uuid.UUID) (Contact, error) {
+	var c Contact
+	var phone *string
+	var verifiedAt *time.Time
+	if err := tx.QueryRow(ctx, `SELECT name, phone, phone_verified_at FROM users WHERE id = $1`, userID).
+		Scan(&c.Name, &phone, &verifiedAt); err != nil {
+		return c, err
+	}
+	if c.PhoneVerified = verifiedAt != nil && phone != nil; c.PhoneVerified {
+		c.Phone = *phone
+	}
+	return c, nil
 }

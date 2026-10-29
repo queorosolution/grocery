@@ -91,6 +91,14 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodDelete, "/me/addresses/{id}", User, d.User.DeleteAddress},
 		)
 	}
+	if d.Order != nil {
+		table = append(table,
+			Route{nethttp.MethodPost, "/bills/quote", User, d.Order.Quote},
+			Route{nethttp.MethodPost, "/bills", User, d.Order.Submit},
+			Route{nethttp.MethodGet, "/orders", User, d.Order.List},
+			Route{nethttp.MethodGet, "/orders/{id}", User, d.Order.Get},
+		)
+	}
 	if d.Catalog != nil {
 		const products = "/console/shops/{shopId}/products"
 		table = append(table,
