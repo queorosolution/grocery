@@ -8,6 +8,9 @@ export const keys = {
   home: (lat: number | null, lng: number | null) => ["home", lat, lng] as const,
   shop: (slug: string) => ["shop", slug] as const,
   products: (slug: string, category: string | null) => ["products", slug, category] as const,
+  search: (q: string, shop: string | null, lat: number | null, lng: number | null) => ["search", q, shop, lat, lng] as const,
+  buyAgain: (slug: string) => ["buyAgain", slug] as const,
+  cart: (cartId: string) => ["cart", cartId] as const,
   orders: () => ["orders"] as const,
   order: (id: string) => ["order", id] as const,
 };

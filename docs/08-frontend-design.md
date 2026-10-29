@@ -120,8 +120,8 @@ web/
 
 | Route | Screen | API calls |
 |---|---|---|
-| `/` | Home: search pill, shops near you, lowest prices, promos | `bootstrap` (once per app), `home` |
-| `/search?q=&shop=` | Results | `search` |
+| `/` | Home: search pill, shops near you, lowest prices, promos. "Near me" keeps a place rounded to 2 decimals (about 1 km) in `localStorage` key `gp_pin`; without it every active shop is listed. | `bootstrap` (once per app), `home` |
+| `/search?q=&shop=` | Results. Searches while typing (300 ms pause, 2 letters at least, a newer search cancels the older). With `shop`, results can be added to the cart; without it they open the shop. | `search` (+ `home`, cached, for the shop names) |
 | `/s/:slug` | Shop: header, buy-again row (signed in), category chips, product grid, sticky cart bar | `shop`, `products` (per category), `buy-again` |
 | `/checkout` | Bill page: lines, substitution per line, address, slot picker, totals, phone verify, "Send to shop" | `quote`, then `bills` |
 | `/orders` | My orders | `orders` |
@@ -189,6 +189,9 @@ Route folders: `/s/:slug` = `app/(customer)/s/[slug]/page.tsx`, `/order/:id` = `
 - Quantity taps are optimistic and **debounced 400 ms per line** → one cart call per burst.
 - Cart prices are labelled "estimate"; the bill page shows server prices.
 - If the cart service fails: toast "Can't update cart, try again", the UI rolls back.
+- One cart holds one shop. A tap on a product of another shop, while the cart has items, opens `SwitchShopDialog`; if the person agrees the old cart is discarded and a new one is started for the new shop. An empty old cart is replaced without asking.
+- Writes go one at a time (a small queue), so two calls never race on one cart. A cart the service no longer knows (`404`) is forgotten, and the next tap starts a new one.
+- The cart lives in the cart service, so only the web app can tell that it has items. `useCartReasons` uses this to stop "Delete account" (FR-AUTH-09).
 
 ## 7. Bill page flow
 
