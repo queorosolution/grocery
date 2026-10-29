@@ -1,3 +1,4 @@
+import type { OrderDetail } from "@/features/orders/types";
 import type { ShopDetail, ProductCardData } from "@/features/shop/types";
 
 export const krishna: ShopDetail = {
@@ -19,3 +20,17 @@ export const samba: ProductCardData = {
 };
 
 export const milk: ProductCardData = { ...samba, shopProductId: "p2", productId: "g2", name: "Fresh Milk", brand: null, sizeLabel: "1L", onlinePriceCents: 38000, mrpCents: null, available: false };
+
+export const order = (over: Partial<OrderDetail> = {}): OrderDetail => ({
+  id: "o1", code: "KS-7Q2M9X", status: "AWAITING_PAYMENT", version: 4, revisionNo: 1,
+  shop: { id: "s1", slug: "krishna-super", name: "Krishna Super", phone: "+94110000000" },
+  slot: { startsAt: "2026-11-02T03:00:00Z", endsAt: "2026-11-02T05:00:00Z" },
+  address: { label: "Home", line1: "12 Galle Road", landmark: null },
+  lines: [{ id: "l1", name: "Samba Rice 5kg", unit: "PCS", qty: 1, unitPriceCents: 143500, lineCents: 143500, state: "ACTIVE", subPref: "SIMILAR", revisionNo: 1, replacesItemId: null }],
+  previousLines: [],
+  totals: { itemsCents: 143500, deliveryFeeCents: 15000, serviceFeeCents: 0, discountCents: 0, totalCents: 158500 },
+  coupon: null, payment: { provider: "PAYHERE", status: "INITIATED" }, deliveryCode: null,
+  timeline: [{ status: "SUBMITTED", at: "2026-11-01T04:00:00Z" }, { status: "AWAITING_PAYMENT", at: "2026-11-01T04:10:00Z" }],
+  allowedActions: ["PAY", "APPLY_COUPON", "CANCEL"],
+  ...over,
+});
