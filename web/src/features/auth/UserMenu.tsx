@@ -49,6 +49,7 @@ export function UserMenu() {
             <p className="truncate font-semibold">{me.name}</p>
             <p className="truncate text-sm text-muted">{me.email}</p>
           </div>
+          <Link role="menuitem" href="/orders" className={item} onClick={() => setOpen(false)}>{t("menu.orders")}</Link>
           <Link role="menuitem" href="/account" className={item} onClick={() => setOpen(false)}>{t("menu.account")}</Link>
           {me.roles.length > 0 && <Link role="menuitem" href="/console" className={item} onClick={() => setOpen(false)}>{t("menu.console")}</Link>}
           <button type="button" role="menuitem" className={item} onClick={signOut}>{t("menu.signOut")}</button>

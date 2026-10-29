@@ -201,7 +201,8 @@ flowchart TD
   B -- no --> SI[Sign-in modal] --> B
   B -- yes --> C{Onboarded?}
   C -- no --> OB[Onboarding] --> C
-  C -- yes --> Q[POST bills/quote]
+  C -- yes --> W[Choose where: saved address or another place]
+  W --> Q[POST bills/quote]
   Q --> V[Show lines, totals, slots]
   V --> P{Phone verified?}
   P -- no --> PV[SMS code dialog] --> P
@@ -209,8 +210,15 @@ flowchart TD
   S --> O[Go to /order/:id]
 ```
 
+**Where to deliver.** The main address is chosen at first. The person can pick another saved address, or "Another place": a street line, a landmark, an optional name and a map pin, for this order only (FR-BILL-10). That place is sent as `destination` instead of `addressId`, is never added to the address book, and is asked for after a 600 ms pause so the bill is not requested on every letter. A person with no saved address gets "Another place" at once.
+
+**When the bill is asked for again.** On open, and when the place, the delivery window or the cart changes. A change of "if it is out of stock" does not ask again; it travels with "Send to shop". The `Idempotency-Key` is made when "Send to shop" is pressed and kept for the same bill, so a retry after a network error cannot create two orders; a changed bill gets a new key.
+
+**Why "Send" is off.** The page lists what the person can fix: shop closed, place out of range, below the minimum order, unavailable items in the cart, no window chosen, phone not verified (the verify card is shown). The server checks everything again on submit.
+
 ## 8. Payment button
 
+0. The button exists only when `allowedActions` has `PAY`. Every other order button (cancel, accept changes, coupon, report a problem) works the same way (XSS-05, D29).
 1. `POST /orders/{id}/payment` with an `Idempotency-Key`.
 2. PayHere: check `isAllowedPayHereAction(action)` (only `https://sandbox.payhere.lk/pay/checkout` or `https://www.payhere.lk/pay/checkout`), build a hidden `<form method="post">` with `document.createElement` (never `innerHTML`), submit.
 3. Return page shows "Confirming payment…" and polls the order until `PAID` (or 3 min → "We'll update you by SMS").

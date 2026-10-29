@@ -12,5 +12,6 @@ export const keys = {
   buyAgain: (slug: string) => ["buyAgain", slug] as const,
   cart: (cartId: string) => ["cart", cartId] as const,
   orders: () => ["orders"] as const,
+  quote: (...parts: readonly unknown[]) => ["quote", ...parts] as const,
   order: (id: string) => ["order", id] as const,
 };
