@@ -12,6 +12,7 @@ import (
 	"gp/internal/coupon"
 	"gp/internal/delivery"
 	"gp/internal/order"
+	"gp/internal/payment"
 	"gp/internal/pricing"
 	"gp/internal/shared/apperr"
 	"gp/internal/shared/authn"
@@ -50,6 +51,9 @@ type Deps struct {
 	Order *order.Handler
 	// Coupon serves the admin's coupons.
 	Coupon *coupon.Handler
+	// Payment starts payments, takes the PayHere callback and marks manual
+	// payments paid.
+	Payment *payment.Handler
 	// Connector serves the shop database connector (admin only).
 	Connector    *connector.Handler
 	Audit        *audit.Handler

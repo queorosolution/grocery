@@ -3,6 +3,7 @@ package http
 import (
 	nethttp "net/http"
 
+	"gp/internal/payment"
 	"gp/internal/shared/enum"
 )
 
@@ -159,6 +160,13 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodGet, "/admin/sync-issues", Admin, d.Connector.Issues},
 			Route{nethttp.MethodPost, "/admin/sync-issues/{id}/resolve", Admin, d.Connector.Resolve},
 			Route{nethttp.MethodPost, TriggerPattern, Sig, d.Connector.Trigger},
+		)
+	}
+	if d.Payment != nil {
+		table = append(table,
+			Route{nethttp.MethodPost, "/orders/{id}/payment", User, d.Payment.Start},
+			Route{nethttp.MethodPost, "/admin/orders/{id}/mark-paid", Admin, d.Payment.MarkPaid},
+			Route{nethttp.MethodPost, payment.NotifyPattern, Sig, d.Payment.Notify},
 		)
 	}
 	if d.Upload != nil {

@@ -10,6 +10,7 @@ import (
 	"gp/internal/cartclient"
 	"gp/internal/coupon"
 	"gp/internal/delivery"
+	"gp/internal/finance"
 	"gp/internal/shared/db"
 	"gp/internal/shop"
 	"gp/internal/user"
@@ -52,6 +53,12 @@ type Carts interface {
 type Coupons interface {
 	Apply(ctx context.Context, tx *db.Tx, in coupon.ApplyInput, price coupon.Pricer) (coupon.Applied, error)
 	Release(ctx context.Context, tx *db.Tx, orderID uuid.UUID) (bool, error)
+	Confirm(ctx context.Context, tx *db.Tx, orderID uuid.UUID) error
+}
+
+// Finance posts the ledger rows of a paid order. *finance.Service is the real one.
+type Finance interface {
+	PostPaid(ctx context.Context, tx *db.Tx, f finance.PaidFacts) error
 }
 
 type Service struct {
@@ -62,8 +69,9 @@ type Service struct {
 	products Products
 	carts    Carts
 	coupons  Coupons
+	finance  Finance
 }
 
-func NewService(d *db.DB, shops Shops, dl Delivery, users Users, products Products, carts Carts, coupons Coupons) *Service {
-	return &Service{db: d, shops: shops, delivery: dl, users: users, products: products, carts: carts, coupons: coupons}
+func NewService(d *db.DB, shops Shops, dl Delivery, users Users, products Products, carts Carts, coupons Coupons, fin Finance) *Service {
+	return &Service{db: d, shops: shops, delivery: dl, users: users, products: products, carts: carts, coupons: coupons, finance: fin}
 }

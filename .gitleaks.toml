@@ -9,4 +9,5 @@ condition = "OR"
 paths = [
   '''backend/internal/auth/helpers_test\.go''',
   '''backend/test/apptest/app\.go''',
+  '''backend/internal/order/pay_helpers_test\.go''',
 ]

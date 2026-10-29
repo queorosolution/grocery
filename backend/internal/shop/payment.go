@@ -3,6 +3,7 @@ package shop
 import (
 	"context"
 	"regexp"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -33,8 +34,28 @@ type Account struct {
 	MerchantID *string                   `json:"merchantId"`
 	Status     enum.PaymentAccountStatus `json:"status"`
 	HasSecret  bool                      `json:"hasSecret"`
+	Bank       *Bank                     `json:"bank"`
 	CreatedAt  time.Time                 `json:"createdAt"`
 	UpdatedAt  time.Time                 `json:"updatedAt"`
+}
+
+// Bank is where a customer sends money for a MANUAL account. It is shown to the
+// customer who pays by bank transfer, so it is not a secret.
+type Bank struct {
+	BankName      string `json:"bankName"`
+	AccountName   string `json:"accountName"`
+	AccountNumber string `json:"accountNumber"`
+	Branch        string `json:"branch"`
+}
+
+const maxBankField = 80
+
+func (b Bank) validate(v *validate.Validator) {
+	for field, val := range map[string]string{"bank.bankName": b.BankName, "bank.accountName": b.AccountName, "bank.accountNumber": b.AccountNumber} {
+		n := utf8.RuneCountInString(strings.TrimSpace(val))
+		v.Check(field, n >= 1 && n <= maxBankField && val == strings.TrimSpace(val), "invalid")
+	}
+	v.Check("bank.branch", utf8.RuneCountInString(b.Branch) <= maxBankField && b.Branch == strings.TrimSpace(b.Branch), "invalid")
 }
 
 // CreateAccountInput is the create request. MerchantSecret never leaves this
@@ -46,6 +67,7 @@ type CreateAccountInput struct {
 	Mode           enum.PaymentMode         `json:"mode"`
 	MerchantID     string                   `json:"merchantId"`
 	MerchantSecret string                   `json:"merchantSecret"`
+	Bank           *Bank                    `json:"bank"`
 }
 
 // UpdateAccountInput changes only what is present.
@@ -54,6 +76,7 @@ type UpdateAccountInput struct {
 	MerchantID     *string                    `json:"merchantId"`
 	MerchantSecret *string                    `json:"merchantSecret"`
 	Status         *enum.PaymentAccountStatus `json:"status"`
+	Bank           *Bank                      `json:"bank"`
 }
 
 func (c CreateAccountInput) validate() error {
@@ -72,8 +95,12 @@ func (c CreateAccountInput) validate() error {
 	switch c.Provider {
 	case enum.PaymentProviderPayhere:
 		checkMerchant(v, c.MerchantID, c.MerchantSecret)
+		v.Check("bank", c.Bank == nil, "not_allowed")
 	case enum.PaymentProviderManual:
 		v.Check("merchantId", c.MerchantID == "", "not_allowed").Check("merchantSecret", c.MerchantSecret == "", "not_allowed")
+		if c.Bank != nil {
+			c.Bank.validate(v)
+		}
 	}
 	return v.Err()
 }
@@ -196,7 +223,12 @@ func applyAccount(a Account, ref *string, in UpdateAccountInput) (Account, *stri
 	}
 	if a.Provider == enum.PaymentProviderManual {
 		v.Check("merchantId", in.MerchantID == nil, "not_allowed").Check("merchantSecret", in.MerchantSecret == nil, "not_allowed")
+		if in.Bank != nil {
+			in.Bank.validate(v)
+			a.Bank = in.Bank
+		}
 	} else {
+		v.Check("bank", in.Bank == nil, "not_allowed")
 		if in.MerchantID != nil {
 			v.Check("merchantId", merchantIDRe.MatchString(*in.MerchantID), "invalid")
 			a.MerchantID = in.MerchantID
