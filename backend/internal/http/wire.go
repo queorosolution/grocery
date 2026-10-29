@@ -74,9 +74,13 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)
 	authSvc := auth.NewService(cfg, database, sec, auth.NewGoogleVerifier(cfg.GoogleClientID), teamSvc)
 	couponSvc := coupon.NewService(database)
+	ledger := finance.NewService()
+	refundSvc := refund.NewService(database, ledger)
 	orderSvc := order.NewService(order.Deps{DB: database, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
-		Coupons: couponSvc, Finance: finance.NewService(), Drivers: teamSvc, Secrets: sec})
-	paymentHandler := payment.NewHandler(payment.NewService(database, orderSvc, shopSvc, refund.NewService(), payment.Registry{
+		Coupons: couponSvc, Finance: ledger, Drivers: teamSvc, Secrets: sec})
+	orderSvc.SetRefunds(refundSvc)
+	refundSvc.SetOrders(orderSvc)
+	paymentHandler := payment.NewHandler(payment.NewService(database, orderSvc, shopSvc, refundSvc, payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+Base+payment.NotifyPattern),
 		enum.PaymentProviderManual:  manual.New(),
 	}))
@@ -93,6 +97,8 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Order:       order.NewHandler(orderSvc),
 		Coupon:      coupon.NewHandler(couponSvc),
 		Payment:     paymentHandler,
+		Refund:      refund.NewHandler(refundSvc),
+		Payouts:     finance.NewHandler(finance.NewPayouts(database)),
 		Connector:   connectorHandler,
 		Audit:       audit.NewHandler(database),
 		Memberships: teamSvc,

@@ -9,6 +9,7 @@ import (
 
 	"gp/internal/shared/db"
 	"gp/internal/shared/enum"
+	"gp/internal/shared/ids"
 	"gp/internal/shared/money"
 	"gp/internal/shared/validate"
 )
@@ -17,6 +18,7 @@ import (
 // to open, with the phone masked as in the detail.
 type ConsoleSummary struct {
 	ID         uuid.UUID        `json:"id"`
+	ShopID     uuid.UUID        `json:"shopId"`
 	Code       string           `json:"code"`
 	Status     enum.OrderStatus `json:"status"`
 	Version    int              `json:"version"`
@@ -63,7 +65,7 @@ func (s *Service) ConsoleList(ctx context.Context, scope db.Scope, statuses []en
 	}
 	var rows []ConsoleSummary
 	err = s.db.Tx(ctx, scope, func(ctx context.Context, tx *db.Tx) (err error) {
-		rows, err = consoleRows(ctx, tx, scope.ShopID, statuses, after, limit+1)
+		rows, err = consoleRows(ctx, tx, consoleFilter{ShopID: scope.ShopID, Statuses: statuses}, after, limit+1)
 		return err
 	})
 	if err != nil {
@@ -72,23 +74,32 @@ func (s *Service) ConsoleList(ctx context.Context, scope db.Scope, statuses []en
 	return pageOf(rows, limit, func(r ConsoleSummary) listKey { return listKey{At: r.CreatedAt, ID: r.ID} }), nil
 }
 
-func consoleRows(ctx context.Context, tx *db.Tx, shopID uuid.UUID, statuses []enum.OrderStatus, after *listKey, n int) ([]ConsoleSummary, error) {
+// consoleFilter narrows a list of orders. A Nil ShopID means every shop, which
+// only the admin's scope can see.
+type consoleFilter struct {
+	ShopID   uuid.UUID
+	Statuses []enum.OrderStatus
+	Q        string
+}
+
+func consoleRows(ctx context.Context, tx *db.Tx, f consoleFilter, after *listKey, n int) ([]ConsoleSummary, error) {
 	var at *time.Time
 	var id uuid.UUID
 	if after != nil {
 		at, id = &after.At, after.ID
 	}
-	filter := make([]string, len(statuses))
-	for i, st := range statuses {
+	filter := make([]string, len(f.Statuses))
+	for i, st := range f.Statuses {
 		filter[i] = string(st)
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT o.id, o.code, o.status, o.version, u.name, o.address->>'phone', sl.starts_at, sl.ends_at, o.total_cents, o.created_at,
+		SELECT o.id, o.shop_id, o.code, o.status, o.version, u.name, o.address->>'phone', sl.starts_at, sl.ends_at, o.total_cents, o.created_at,
 		       (SELECT count(*) FROM order_items i WHERE i.order_id = o.id AND i.revision_no = o.revision_no AND i.state IN ('ACTIVE', 'SUBSTITUTE'))
 		FROM orders o JOIN users u ON u.id = o.customer_id LEFT JOIN slots sl ON sl.id = o.slot_id
-		WHERE o.shop_id = $1 AND (cardinality($2::text[]) = 0 OR o.status = ANY($2))
+		WHERE ($1::uuid IS NULL OR o.shop_id = $1) AND (cardinality($2::text[]) = 0 OR o.status = ANY($2))
 		  AND ($3::timestamptz IS NULL OR (o.created_at, o.id) < ($3, $4))
-		ORDER BY o.created_at DESC, o.id DESC LIMIT $5`, shopID, filter, at, id, n)
+		  AND ($6 = '' OR o.code = upper($6) OR ($6 ~ '^[0-9]{4}$' AND right(o.address->>'phone', 4) = $6))
+		ORDER BY o.created_at DESC, o.id DESC LIMIT $5`, ids.Ref(f.ShopID), filter, at, id, n, f.Q)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +109,7 @@ func consoleRows(ctx context.Context, tx *db.Tx, shopID uuid.UUID, statuses []en
 		var r ConsoleSummary
 		var phone string
 		var starts, ends *time.Time
-		if err := rows.Scan(&r.ID, &r.Code, &r.Status, &r.Version, &r.Customer.Name, &phone, &starts, &ends, &r.TotalCents, &r.CreatedAt, &r.ItemCount); err != nil {
+		if err := rows.Scan(&r.ID, &r.ShopID, &r.Code, &r.Status, &r.Version, &r.Customer.Name, &phone, &starts, &ends, &r.TotalCents, &r.CreatedAt, &r.ItemCount); err != nil {
 			return nil, err
 		}
 		r.Customer.PhoneMasked = maskPhone(phone)

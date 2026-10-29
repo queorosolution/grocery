@@ -139,9 +139,13 @@ func New(t *testing.T) *App {
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
 	couponSvc := coupon.NewService(env.DB)
+	ledger := finance.NewService()
+	refundSvc := refund.NewService(env.DB, ledger)
 	orderSvc := order.NewService(order.Deps{DB: env.DB, Shops: shopSvc, Delivery: deliverySvc, Users: userSvc, Products: catalogSvc, Carts: carts,
-		Coupons: couponSvc, Finance: finance.NewService(), Drivers: teamSvc, Secrets: sec})
-	paymentSvc := payment.NewService(env.DB, orderSvc, shopSvc, refund.NewService(), payment.Registry{
+		Coupons: couponSvc, Finance: ledger, Drivers: teamSvc, Secrets: sec})
+	orderSvc.SetRefunds(refundSvc)
+	refundSvc.SetOrders(orderSvc)
+	paymentSvc := payment.NewService(env.DB, orderSvc, shopSvc, refundSvc, payment.Registry{
 		enum.PaymentProviderPayhere: payhere.New(sec, cfg.WebOrigin, cfg.APIBaseURL+apihttp.Base+payment.NotifyPattern),
 		enum.PaymentProviderManual:  manual.New(),
 	})
@@ -157,6 +161,8 @@ func New(t *testing.T) *App {
 		Order:     order.NewHandler(orderSvc),
 		Coupon:    coupon.NewHandler(couponSvc),
 		Payment:   paymentHandler,
+		Refund:    refund.NewHandler(refundSvc),
+		Payouts:   finance.NewHandler(finance.NewPayouts(env.DB)),
 		Connector: connectorHandler,
 		Audit:     audit.NewHandler(env.DB),
 		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{

@@ -99,6 +99,7 @@ type Service struct {
 	finance  Finance
 	drivers  Drivers
 	secrets  secrets.Getter
+	refunds  Refunds
 }
 
 func NewService(d Deps) *Service {

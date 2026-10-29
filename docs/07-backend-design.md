@@ -270,6 +270,14 @@ Inside one `db.Tx`:
 - **Buy again:** `catalog.BuyAgain` consumes `order.delivered` (`catalog.buy_again`) and upserts `customer_products` from the lines of the current revision that are `ACTIVE` or `SUBSTITUTE`. It is registered in `worker/wire.go`; the dispatcher's `processed_events` claim keeps a repeated event from counting twice.
 - **Deferred:** the SMS with the delivery code comes with the notify prompt (P25); until then the customer reads the code in the order detail.
 
+**Built in P24 (`internal/refund`, `internal/finance` payouts, `internal/order` tickets and admin tools):**
+- **Refund flow:** the shop's `Request` (`refund.Service`) asks `order.Service` to lock the order (`RefundOrder`) and, for a partial one, to mark the line `MISSING` (`MarkLineMissing`, version + 1). The admin's `Decide` approves or rejects. Approving a shop's `FULL` calls `order.CancelRefund`, which is `transition` to `CANCELLED_REFUND` (T19) in the same transaction; the T19 hook (`cancelRefund`) releases the slot and calls `Refunds.ApproveCancel`, which approves the request. With no request (the admin cancels on their own) it writes an approved `FULL` refund of `total_cents` less the open and paid refunds, and refuses while a request is still open. `order` knows `refund` only through the `Refunds` interface and the setter `SetRefunds`; `refund` imports `order` for its types.
+- **Ledger:** `MarkPaidOut` is the only place the ledger changes for a refund. `finance.PostRefund` writes `REFUND` rows (with `refund_id`): a full refund takes back the order's current sum per party; a partial one takes back the line's shop part from `SHOP` and the rest from `PLATFORM`. A `LATE_PAYMENT` refund never was in the ledger and writes none.
+- **Payouts (`finance.Payouts`):** `Create` locks the shop row, refuses a second draft or an overlapping period, and takes the amount from `finance.Balance` (the shop's `SHOP` rows up to the end of `to`). `MarkPaid` writes the `PAYOUT` row. The shop sees `balanceCents` and its payouts at `GET /console/shops/{shopId}/payouts`.
+- **Tickets (`order/ticket.go`):** reasons are code constants (`MISSING_ITEM`, `DAMAGED`, `WRONG_ITEM`, `LATE`, `OTHER`); 10 per customer per day.
+- **Admin orders (`order/admin.go`):** `AdminList` is the console list with no shop filter (same keyset page, plus `q`); `AdminTransition` is `Transition` with a required reason, and refuses `PAID`.
+- **Shared:** `ids.Ref` turns the Nil uuid into SQL NULL for optional ids.
+
 `Submit`, `Review`, coupon and payment functions all end by calling `Transition` (or the shared hook code) — never their own `UPDATE orders SET status`.
 
 **Order codes:** `<SHOPPREFIX>-<6 chars>` from Crockford base32, e.g. `KS-7Q2M9X`. Prefix from shop slug (2 letters). Unique index retries once on clash.

@@ -119,6 +119,27 @@ func Routes(d Deps) []Route {
 			Route{nethttp.MethodPost, "/driver/deliveries/{id}/complete", deliver, d.Order.Complete},
 			Route{nethttp.MethodPost, "/driver/deliveries/{id}/fail", deliver, d.Order.Fail},
 			Route{nethttp.MethodGet, "/driver/stats", Perm(enum.PermissionDashboardDriver), d.Order.DriverStats},
+			Route{nethttp.MethodPost, "/orders/{id}/tickets", User, d.Order.ReportProblem},
+			Route{nethttp.MethodGet, "/admin/orders", Admin, d.Order.AdminList},
+			Route{nethttp.MethodPost, "/admin/orders/{id}/transition", Admin, d.Order.AdminTransition},
+			Route{nethttp.MethodGet, "/admin/tickets", Admin, d.Order.Tickets},
+			Route{nethttp.MethodPost, "/admin/tickets/{id}/resolve", Admin, d.Order.ResolveTicket},
+		)
+	}
+	if d.Refund != nil {
+		table = append(table,
+			Route{nethttp.MethodPost, "/console/shops/{shopId}/orders/{id}/refund-requests", Perm(enum.PermissionOrderRequestRefund), d.Refund.Request},
+			Route{nethttp.MethodGet, "/admin/refunds", Admin, d.Refund.List},
+			Route{nethttp.MethodPost, "/admin/refunds/{id}/decide", Admin, d.Refund.Decide},
+			Route{nethttp.MethodPost, "/admin/refunds/{id}/paid-out", Admin, d.Refund.PaidOut},
+		)
+	}
+	if d.Payouts != nil {
+		table = append(table,
+			Route{nethttp.MethodGet, "/console/shops/{shopId}/payouts", Perm(enum.PermissionDashboardShopFull), d.Payouts.ShopPayouts},
+			Route{nethttp.MethodGet, "/admin/payouts", Admin, d.Payouts.List},
+			Route{nethttp.MethodPost, "/admin/payouts", Admin, d.Payouts.Create},
+			Route{nethttp.MethodPost, "/admin/payouts/{id}/paid", Admin, d.Payouts.Paid},
 		)
 	}
 	if d.Coupon != nil {

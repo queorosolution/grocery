@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/oklog/ulid/v2"
 
 	"gp/internal/shared/clock"
@@ -21,6 +22,15 @@ var (
 	mu      sync.Mutex
 	entropy = ulid.Monotonic(rand.Reader, 0) // not safe for concurrent use, so guarded by mu
 )
+
+// Ref is the id as a nullable query argument: the Nil id becomes SQL NULL, so "no
+// shop" or "no refund" is stored and filtered as NULL and never as the zero uuid.
+func Ref(id uuid.UUID) *uuid.UUID {
+	if id == uuid.Nil {
+		return nil
+	}
+	return &id
+}
 
 // Event returns a sortable id for an outbox event: evt_<ULID>.
 func Event() string { return prefixed("evt_") }
