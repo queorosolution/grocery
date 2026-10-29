@@ -41,20 +41,28 @@ func (s *Service) Products(ctx context.Context, scope db.Scope, q, cur string) (
 }
 
 func (s *Service) CreateProduct(ctx context.Context, scope db.Scope, in ProductInput) (Product, error) {
+	var out Product
+	err := s.db.Tx(ctx, scope, func(ctx context.Context, tx *db.Tx) (err error) {
+		out, err = s.CreateProductIn(ctx, tx, scope, in)
+		return err
+	})
+	return out, err
+}
+
+// CreateProductIn adds a master product in the caller's transaction, with the
+// same checks and audit row as CreateProduct. A body that fails the checks is
+// refused before anything is written, so the caller's transaction stays usable.
+func (s *Service) CreateProductIn(ctx context.Context, tx *db.Tx, scope db.Scope, in ProductInput) (Product, error) {
 	p := Product{Unit: enum.UnitPcs, Status: enum.ProductStatusActive}
 	p.apply(in)
 	if err := s.checkProduct(p); err != nil {
 		return Product{}, err
 	}
-	var out Product
-	err := s.db.Tx(ctx, scope, func(ctx context.Context, tx *db.Tx) error {
-		var err error
-		if out, err = insertProduct(ctx, tx, p); err != nil {
-			return productClash(err)
-		}
-		return recordProduct(ctx, tx, scope, "product.create", Product{}, out)
-	})
-	return out, err
+	out, err := insertProduct(ctx, tx, p)
+	if err != nil {
+		return Product{}, productClash(err)
+	}
+	return out, recordProduct(ctx, tx, scope, "product.create", Product{}, out)
 }
 
 func (s *Service) UpdateProduct(ctx context.Context, scope db.Scope, id uuid.UUID, in ProductInput) (Product, error) {

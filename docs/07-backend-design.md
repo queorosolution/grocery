@@ -275,8 +275,22 @@ flowchart TD
 
 - Source query is **built from the saved mapping** with `pgx.Identifier{…}.Sanitize()` for every name, after checking each name exists in `information_schema`. No user text ever goes into SQL.
 - Without `change_column`: read all rows, compare `sha256(row)` to `shop_products.source_hash`, skip unchanged. Rows missing from the source → `is_available = false`.
-- Source connection: `pgx.Connect` (no pool), `sslmode=require` forced, `default_transaction_read_only=on` set in the connection, statement timeout 20 s.
+- Source connection: `pgx.Connect` (no pool), TLS with certificate check, every read in a `READ ONLY` transaction with `SET LOCAL statement_timeout` (set per transaction so it also works through a pooler). See `09-integrations.md` section 5.5.
 - Host check before connecting: resolve DNS, refuse private, loopback, link-local and metadata addresses (see `11-security-audit.md`, SSRF).
+
+### 11.1 How the run is built (P17)
+
+- **Code:** `connector.Run(ctx, Job{ConnectorID, Trigger, ExternalIDs})` in `run.go` (begin, finish), `read.go` (read, then batches), `apply.go` (one transaction per 200 rows). `internal/syncjob` + `cmd/sync` receive the job. Matching and holds are the pure `Decide` of `plan.go`, the same code the preview uses.
+- **No overlap:** `begin` locks the connector row, ends RUNNING rows older than 2 minutes as `FAILED` (`timed_out`), and refuses to start next to a younger one. The partial unique index `connector_runs_one_running` backs this up. A manual run next to a running one is `CONNECTOR_BUSY` (no row); a scheduled or webhook run is written as `SKIPPED`.
+- **Who runs when:** `SCHEDULE` and `WEBHOOK` runs need status `ACTIVE` or `FAILING`; `MANUAL` runs any status once a mapping is saved. Only `SCHEDULE` runs wait for open hours (`shop.OpenAt`, Colombo time), and a scheduled run outside them writes no row, so closed nights do not fill the run list.
+- **Incremental:** with a change column the read is `WHERE change >= last_cursor ORDER BY change, external id LIMIT 20001`. The cursor is the newest change time read and moves only after a good run. `>=` re-reads the rows of the last change time on purpose; applying a row twice changes nothing. A run for chosen `externalIds` reads only those rows and never moves the cursor.
+- **Full:** no change column. Each row is hashed (`sha256` of the length-prefixed raw values) and skipped when `shop_products.source_hash` is the same. Saving a new mapping clears the hashes. When the whole table was read (not cut at 20,000), connector-managed products missing from it become unavailable and lose their hash, so they return with their row. An empty source hides nothing.
+- **Per row:** update the price through `pricing.SetShopPrice` (source `CONNECTOR`), keep the MRP the row does not give, take stock and availability (`stock <= 0` means unavailable). A hold keeps the old price but still takes stock and availability. New products go through `pricing.AddShopProduct` with `managedBy = CONNECTOR`; auto-create makes the master product with `catalog.CreateProductIn`. The row's `category` is read but not used yet: a created master product has no category.
+- **Same batch:** two rows with one external id apply once (the last wins); two rows with one barcode link or create that master product once, the other is `UNMATCHED` (`already_linked`).
+- **Issues:** one open issue per connector, kind and external id (`sync_issues_one_open`); a repeat refreshes its payload. A row that applies cleanly closes its open issues (`RESOLVED`, no `resolved_by`). An `IGNORED` issue stays quiet until the row's content changes.
+- **Failure:** the source failing (`CONNECTOR_TEST_FAILED` inside the run) is `source_failed`, anything else `apply_failed`; neither text holds anything from the shop's database. Each failed run adds 1 to `consecutive_failures`; at 3 an `ACTIVE` connector becomes `FAILING` and one `connector.failed` event is written in the same transaction. A good run resets the count and returns `FAILING` to `ACTIVE`.
+- **Schedule:** `Schedules.Upsert/Delete` (EventBridge Scheduler, `connaws`) run after the commit that changes the status or interval, so a failure there leaves the saved state and repeating the call fixes it. "Sync now" and the trigger start the run with an async Lambda invoke (`connaws.Invoker`); without a sync function ARN (local runs) the run happens in the request.
+- **Trigger:** `Authenticate` checks, in order, the time window, the `v1=` hex form, the secret from the secret store, the HMAC, and only then the hourly limit. Each signed route has its own verifier (`SigByRoute`); a signed route without one is denied.
 
 ## 12. Payment providers
 

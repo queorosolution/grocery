@@ -8,6 +8,9 @@ import (
 	"gp/internal/auth"
 	"gp/internal/cartclient"
 	"gp/internal/catalog"
+	"gp/internal/connector"
+	"gp/internal/connector/connaws"
+	"gp/internal/connector/source"
 	"gp/internal/delivery"
 	"gp/internal/events"
 	"gp/internal/events/eventsaws"
@@ -49,6 +52,14 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 	shopSvc.SetRepricer(pricingSvc)
 	catalogSvc := catalog.NewService(database, shopSvc, deliverySvc, pricingSvc, cfg.ImgBaseURL)
 	shopSvc.SetCarts(cartclient.New(cfg.CartAPIBase, sec, cfg.AllowedOrigins), catalogSvc)
+	schedules, invoker, err := connaws.New(ctx, cfg)
+	if err != nil {
+		database.Close()
+		return Deps{}, nil, fmt.Errorf("wire: %w", err)
+	}
+	connectorSvc := connector.NewService(database, sec, source.NewPostgres(source.Options{}), cfg.ImgBaseURL).
+		Attach(connector.Runtime{Pricer: pricingSvc, Products: catalogSvc, Hours: shopSvc, Schedules: schedules, Invoker: invoker})
+	connectorHandler := connector.NewHandler(connectorSvc)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := notify.New(logchannel.New(cfg.IsLocal())) // real SMS comes with P25
 	userSvc := user.NewService(database, sec, turnstile.New(sec), sms, deliverySvc, cfg.PlatformName)
@@ -63,7 +74,9 @@ func Wire(ctx context.Context, cfg *config.Config, sec secrets.Store) (Deps, fun
 		Catalog:     catalog.NewHandler(catalogSvc),
 		Pricing:     pricing.NewHandler(pricingSvc),
 		Upload:      upload.NewHandler(uploadSvc, teamSvc),
+		Connector:   connectorHandler,
 		Audit:       audit.NewHandler(database),
 		Memberships: teamSvc,
+		VerifySig:   SigByRoute(map[string]SigVerifier{"POST " + Base + TriggerPattern: connectorHandler.VerifyTrigger}),
 	}, database.Close, nil
 }

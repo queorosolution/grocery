@@ -8,6 +8,7 @@ import (
 	"gp/internal/audit"
 	"gp/internal/auth"
 	"gp/internal/catalog"
+	"gp/internal/connector"
 	"gp/internal/delivery"
 	"gp/internal/pricing"
 	"gp/internal/shared/apperr"
@@ -40,9 +41,11 @@ type Deps struct {
 	User *user.Handler
 	// Catalog serves categories, products and a shop's own products; Pricing the
 	// category markups; Upload the image upload links.
-	Catalog      *catalog.Handler
-	Pricing      *pricing.Handler
-	Upload       *upload.Handler
+	Catalog *catalog.Handler
+	Pricing *pricing.Handler
+	Upload  *upload.Handler
+	// Connector serves the shop database connector (admin only).
+	Connector    *connector.Handler
 	Audit        *audit.Handler
 	Authenticate func(*nethttp.Request) (authn.Actor, bool)
 	// Memberships loads the caller's roles for admin and perm: routes. Nil

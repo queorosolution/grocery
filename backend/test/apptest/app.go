@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,8 @@ import (
 	"gp/internal/auth"
 	"gp/internal/cartclient"
 	"gp/internal/catalog"
+	"gp/internal/connector"
+	"gp/internal/connector/source"
 	"gp/internal/delivery"
 	"gp/internal/events"
 	apihttp "gp/internal/http"
@@ -77,7 +80,12 @@ type App struct {
 	Cart *fakes.Cart
 	// Events holds the consumers the worker would run; DrainEvents runs them.
 	Events *events.Registry
-	ips    int
+	// Connector is the connector service the API uses; tests call Run on it as the
+	// sync function would. Schedules and Invoker are the fakes it was given.
+	Connector *connector.Service
+	Schedules *fakes.Schedules
+	Invoker   *fakes.Invoker
+	ips       int
 }
 
 func New(t *testing.T) *App {
@@ -109,20 +117,27 @@ func New(t *testing.T) *App {
 	shopSvc.SetCarts(carts, catalogSvc)
 	reg := events.NewRegistry()
 	catalog.NewCartSync(shopSvc, carts).Register(reg)
+	schedules, invoker := fakes.NewSchedules(), &fakes.Invoker{}
+	connectorSvc := connector.NewService(env.DB, sec, localSource(env), cfg.ImgBaseURL).
+		Attach(connector.Runtime{Pricer: pricingSvc, Products: catalogSvc, Hours: shopSvc, Schedules: schedules, Invoker: invoker})
+	connectorHandler := connector.NewHandler(connectorSvc)
 	uploadSvc := upload.NewService(upload.NewR2(cfg.R2AccountID, cfg.R2Bucket, sec), cfg.ImgBaseURL)
 	sms := &fakes.Outbox{}
 	userSvc := user.NewService(env.DB, sec, fakes.Turnstile{}, notify.New(sms), deliverySvc, cfg.PlatformName)
 	deps := apihttp.Deps{
 		Config: cfg, Auth: auth.NewHandler(svc, cfg), Team: team.NewHandler(teamSvc), Memberships: teamSvc,
-		Shop:     shop.NewHandler(shopSvc),
-		Delivery: delivery.NewHandler(deliverySvc),
-		User:     user.NewHandler(userSvc, svc),
-		Catalog:  catalog.NewHandler(catalogSvc),
-		Pricing:  pricing.NewHandler(pricingSvc),
-		Upload:   upload.NewHandler(uploadSvc, teamSvc),
-		Audit:    audit.NewHandler(env.DB),
+		Shop:      shop.NewHandler(shopSvc),
+		Delivery:  delivery.NewHandler(deliverySvc),
+		User:      user.NewHandler(userSvc, svc),
+		Catalog:   catalog.NewHandler(catalogSvc),
+		Pricing:   pricing.NewHandler(pricingSvc),
+		Upload:    upload.NewHandler(uploadSvc, teamSvc),
+		Connector: connectorHandler,
+		Audit:     audit.NewHandler(env.DB),
+		VerifySig: apihttp.SigByRoute(map[string]apihttp.SigVerifier{"POST " + apihttp.Base + apihttp.TriggerPattern: connectorHandler.VerifyTrigger}),
 	}
-	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg}
+	return &App{T: t, Env: env, OIDC: oidc, Handler: apihttp.New(deps), Deps: deps, Secrets: sec, SMS: sms, Cart: cart, Events: reg,
+		Connector: connectorSvc, Schedules: schedules, Invoker: invoker}
 }
 
 // Call sends a browser-like request: the CSRF headers are always present.
@@ -313,4 +328,28 @@ func (a *App) DrainEvents() error {
 		}
 	}
 	return nil
+}
+
+// localSource opens the test database as if it were a shop's database: the
+// local address and port are allowed and TLS is off. The production policy
+// would refuse both, which source's own tests check.
+func localSource(env *testdb.Env) *source.Postgres {
+	u, err := url.Parse(env.OwnerURL)
+	if err != nil {
+		panic(err)
+	}
+	port, _ := strconv.Atoi(u.Port())
+	return source.NewPostgres(source.Options{Policy: source.Policy{AllowLocal: true, Port: port}, PlaintextForTest: true})
+}
+
+// SourceString is a connection string for the test database, owner login, in
+// the form the connector accepts.
+func (a *App) SourceString() string {
+	a.T.Helper()
+	u, err := url.Parse(a.Env.OwnerURL)
+	if err != nil {
+		a.T.Fatal(err)
+	}
+	u.RawQuery = url.Values{"sslmode": {"require"}}.Encode()
+	return u.String()
 }
