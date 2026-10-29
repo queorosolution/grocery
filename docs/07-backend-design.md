@@ -39,7 +39,8 @@ flowchart LR
 | Time / Colombo time | `clock.Now()`, `clock.Colombo(t)` | `internal/shared/clock` |
 | IDs | `ids.Event()`, `ids.OrderCode(shopPrefix)`, `ids.Token()` | `internal/shared/ids` |
 | Encrypt / hash secrets | `crypt.Seal`, `crypt.Open`, `crypt.HMAC`, `crypt.Equal` | `internal/shared/crypt` |
-| Rate limit | `ratelimit.Hit(ctx, q, key, limit, window)` | `internal/shared/ratelimit` |
+| Rate limit | `ratelimit.Hit(ctx, db, key, limit, window)`. Runs in its **own committed transaction**, so a refused request still counts. Put a keyed hash in `key`, never an e-mail or raw IP. | `internal/shared/ratelimit` |
+| Caller address | `httpx.ClientIP(r)`: for throttling and hashing only, never for access decisions | `internal/shared/httpx` |
 | Emit an event | `events.Add(tx, events.OrderPaid, shopID, orderID, data)` | `internal/events` |
 | Create a timer | `events.Add(tx, events.TimerSchedule, …)` (same outbox path) | `internal/events` |
 | Write audit row | `audit.Write(tx, actor, "shop.settings", "shop", id, before, after)` | `internal/audit` |

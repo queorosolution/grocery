@@ -127,6 +127,9 @@ Body: `{ "idToken": "…", "inviteToken": "…optional…" }`
 - Verifies the Google token. Creates the user on first sign-in. Accepts the invite if given (email must match).
 - Sets cookies. Returns the same `me` object as `/bootstrap`.
 - Errors: `UNAUTHENTICATED` (bad token), `FORBIDDEN` (blocked user, invite email mismatch), `RATE_LIMITED`.
+- Unknown fields are rejected, so `inviteToken` is accepted only from the invites step (P08) on.
+- If the e-mail is in `SUPER_ADMIN_EMAILS`, a `PLATFORM / SUPER_ADMIN` membership is created on sign-in (still needs TOTP for admin routes).
+- The limit is 10 attempts per 10 minutes per IP (before the token is checked) and per Google account (after).
 
 ### `POST /auth/totp/setup` — user with SUPER_ADMIN membership, `adminTotp = SETUP_NEEDED`
 Returns `{ "otpauthUri": "otpauth://totp/…", "secretMasked": "…" }` once. Show as QR.
@@ -135,10 +138,10 @@ Returns `{ "otpauthUri": "otpauth://totp/…", "secretMasked": "…" }` once. Sh
 Body `{ "code": "123456" }`. Marks the session `totp_ok`. First verify also enables TOTP. Errors: `TOTP_INVALID`, `RATE_LIMITED` (5 / 15 min).
 
 ### `POST /auth/refresh` — refresh cookie
-Rotates the refresh token. Reuse of an old token → whole family revoked → `401`.
+Rotates the refresh token and sets new cookies, `204`. Reuse of an old token → whole family revoked → `401` and the `auth.refresh_reuse` alarm event. A refused refresh also clears both cookies. A blocked user or an expired token → `401`.
 
 ### `POST /auth/logout` — user
-Body `{ "all": false }`. Clears cookies.
+Body `{ "all": false }` (optional). Ends this sign-in, or every sign-in of the user when `all` is true. Clears cookies, `204`.
 
 ---
 

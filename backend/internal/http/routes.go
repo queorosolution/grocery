@@ -15,8 +15,17 @@ type Route struct {
 
 // routes lists every API route. Patterns are relative to the /v1 base.
 func routes(d Deps) []Route {
-	return []Route{
+	table := []Route{
 		{nethttp.MethodGet, "/health", Public, health},
 		{nethttp.MethodGet, "/bootstrap", Public, bootstrap(d)},
 	}
+	if d.Auth != nil {
+		table = append(table,
+			Route{nethttp.MethodPost, "/auth/google", Public, d.Auth.Google},
+			Route{nethttp.MethodPost, "/auth/refresh", Public, d.Auth.Refresh},
+			Route{nethttp.MethodPost, "/auth/logout", User, d.Auth.Logout},
+			Route{nethttp.MethodGet, "/me", User, d.Auth.Me},
+		)
+	}
+	return table
 }
