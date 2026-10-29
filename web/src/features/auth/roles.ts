@@ -1,5 +1,6 @@
-import type { Role } from "@/lib/enums.gen";
+import type { Permission, Role } from "@/lib/enums.gen";
 import { t } from "@/lib/i18n";
+import { rolePermissions } from "@/lib/perms.gen";
 import type { Me } from "./types";
 
 /** Every role that works in the console. A customer has no membership row at all. */
@@ -26,4 +27,22 @@ export function consoleLinks(me: Me): ConsoleLink[] {
   }
   if (hasRole(me, "SHOP_DRIVER", "PLATFORM_DRIVER")) links.push({ href: "/console/driver", title: t("console.driver"), hint: t("console.driverHint") });
   return links;
+}
+
+/**
+ * What this person may do in one shop. A hint for what to show: the API decides on every call.
+ * A super admin may do everything of the SUPER_ADMIN list; staff get product edits only when the
+ * owner switched it on (`canEditProducts`).
+ */
+export function shopPermissions(me: Me | null, shopId: string | null): ReadonlySet<Permission> {
+  const out = new Set<Permission>();
+  if (!me || !shopId) return out;
+  for (const r of me.roles) {
+    if (r.role === "SUPER_ADMIN") rolePermissions.SUPER_ADMIN.forEach((p) => out.add(p));
+    else if (r.shopId === shopId) {
+      rolePermissions[r.role].forEach((p) => out.add(p));
+      if (r.canEditProducts) out.add("product.edit");
+    }
+  }
+  return out;
 }

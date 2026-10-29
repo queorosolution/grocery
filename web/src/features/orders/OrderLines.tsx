@@ -7,7 +7,7 @@ import type { OrderDetail } from "./types";
 const money = (cents: number | null) => (cents === null ? "" : formatLKR(cents));
 
 /** The lines of the current bill, then the totals. */
-export function OrderLines({ order }: { order: OrderDetail }) {
+export function OrderLines({ order }: { order: Pick<OrderDetail, "lines" | "totals"> }) {
   return (
     <Card className="p-4">
       <ul className="divide-y divide-line">

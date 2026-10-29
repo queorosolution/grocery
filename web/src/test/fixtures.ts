@@ -1,4 +1,6 @@
+import type { Me } from "@/features/auth/types";
 import type { OrderDetail } from "@/features/orders/types";
+import type { QueueRow, ShopOrder } from "@/features/console-shop/types";
 import type { ShopDetail, ProductCardData } from "@/features/shop/types";
 
 export const krishna: ShopDetail = {
@@ -34,3 +36,22 @@ export const order = (over: Partial<OrderDetail> = {}): OrderDetail => ({
   allowedActions: ["PAY", "APPLY_COUPON", "CANCEL"],
   ...over,
 });
+
+
+export const owner = (): Me["roles"] => [{ role: "SHOP_OWNER", shopId: "s1", shopSlug: "krishna-super", shopName: "Krishna Super", canEditProducts: true }];
+export const staff = (canEditProducts = false): Me["roles"] => [{ role: "SHOP_STAFF", shopId: "s1", shopSlug: "krishna-super", shopName: "Krishna Super", canEditProducts }];
+
+export const queueRow = (over: Partial<QueueRow> = {}): QueueRow => ({
+  id: "o1", shopId: "s1", code: "KS-7Q2M9X", status: "SUBMITTED", version: 1, customer: { name: "Nimal Perera", phoneMasked: "077•••4567" },
+  slot: null, totalCents: 158500, itemCount: 2, createdAt: "2026-11-01T04:00:00Z", ...over,
+});
+
+export const shopOrder = (over: Partial<ShopOrder> = {}): ShopOrder => ({
+  ...(order({ id: "o1", status: "SUBMITTED", version: 1, allowedActions: ["APPROVE", "REVISE", "REJECT"] }) as Omit<ShopOrder, "customer">),
+  customer: { name: "Nimal Perera", phoneMasked: "077•••4567" },
+  lines: [
+    { id: "l1", name: "Samba Rice 5kg", unit: "PCS", qty: 2, unitPriceCents: 143500, lineCents: 287000, state: "ACTIVE", subPref: "SIMILAR", revisionNo: 1, replacesItemId: null },
+    { id: "l2", name: "Fresh Milk 1L", unit: "PCS", qty: 1, unitPriceCents: 38000, lineCents: 38000, state: "ACTIVE", subPref: "CALL_ME", revisionNo: 1, replacesItemId: null },
+  ],
+  ...over,
+} as ShopOrder);

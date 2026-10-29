@@ -64,7 +64,7 @@ func (s *Service) loadMe(ctx context.Context, tx *db.Tx, userID uuid.UUID, totpO
 func roleInfos(ms []authz.Membership) []RoleInfo {
 	out := make([]RoleInfo, 0, len(ms))
 	for _, m := range ms {
-		r := RoleInfo{Role: m.Role}
+		r := RoleInfo{Role: m.Role, CanEditProducts: m.Has(enum.PermissionProductEdit)}
 		if m.ShopID != uuid.Nil {
 			id, slug, name := m.ShopID, m.ShopSlug, m.ShopName
 			r.ShopID, r.ShopSlug, r.ShopName = &id, &slug, &name

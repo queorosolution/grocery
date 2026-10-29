@@ -63,12 +63,13 @@ One call per app load.
   "me": {
     "id": "…", "name": "Nimal", "email": "nimal@gmail.com",
     "phoneMasked": "077•••4567", "phoneVerified": true, "needsOnboarding": false,
-    "roles": [ { "role": "SHOP_OWNER", "shopId": "…", "shopSlug": "krishna-super", "shopName": "Krishna Super" } ],
+    "roles": [ { "role": "SHOP_OWNER", "shopId": "…", "shopSlug": "krishna-super", "shopName": "Krishna Super", "canEditProducts": true } ],
     "adminTotp": "NOT_REQUIRED"
   }
 }
 ```
 
+- `canEditProducts` is only a hint for the console (owner: yes; staff: when the owner switched it on); the product edit call checks it again.
 - `me` is `null` when signed out. `adminTotp`: `NOT_REQUIRED` | `SETUP_NEEDED` | `CODE_NEEDED` | `OK`.
 
 ### `GET /home?lat=&lng=` — public, cacheable

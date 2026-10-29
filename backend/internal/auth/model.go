@@ -53,6 +53,9 @@ type RoleInfo struct {
 	ShopID   *uuid.UUID `json:"shopId"`
 	ShopSlug *string    `json:"shopSlug"`
 	ShopName *string    `json:"shopName"`
+	// CanEditProducts tells the console whether to offer product edits: always for an owner,
+	// for staff only when the owner switched it on. The API checks it again on every edit.
+	CanEditProducts bool `json:"canEditProducts"`
 }
 
 // GoogleIdentity is what we trust from a verified Google ID token.
